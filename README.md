@@ -1,5 +1,5 @@
 # Sistema-de-Pedidos-Optica
-Proyecto de clases de Ingeniería de Software II para aprender sobre calidad y explorar más sobre el desarrollo de software siguiendo las normativas y estándares.
+Proyecto de clases de Ingeniería de Software II para aprender sobre mediciones de calidad y explorar más sobre el desarrollo de software siguiendo las normativas y estándares.
 
 ![Banner del proyecto](./images/banner.png)
 
