@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Vista Carrito - Óptica</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="navbar" id="navbar-container"></div>
+
+    <div class="contenedor">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div></div>
+            <div class="titulo-box">VISTA CARRITO</div>
+        </div>
+
+        <div class="grid-principal" style="grid-template-columns: 1fr 280px;">
+            <div>
+                <div id="productos-grid" class="productos-grid"></div>
+                <p id="mensaje-vacio" class="mensaje-vacio" style="display:none;">Tu carrito está vacío. Ve al catálogo para añadir productos.</p>
+            </div>
+
+            <div class="resumen-carrito">
+                <h3>Precio Total:</h3>
+                <div class="total" id="precio-total">$0.00</div>
+                <button class="btn btn-block" id="btn-confirmar">Confirmar Compra</button>
+                <button class="btn btn-secundario btn-block" id="btn-cancelar">Cancelar Compra</button>
+                <p id="mensaje-estado" style="margin-top:10px;"></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/common.js"></script>
+    <script src="/static/js/carrito.js"></script>
+</body>
+</html>

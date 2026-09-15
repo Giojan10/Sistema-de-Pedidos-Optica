@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Óptica - Identificación</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="contenedor" style="max-width:480px; margin-top:60px;">
+        <div class="panel">
+            <h2>Bienvenido/a</h2>
+            <p>Selecciona tu usuario o regístrate para continuar al catálogo.</p>
+
+            <label style="font-weight:600;">Cliente existente</label>
+            <select id="select-cliente" style="width:100%; padding:8px; margin:8px 0 16px; border-radius:4px; border:1px solid #a9c4e0;">
+                <option value="">-- Selecciona --</option>
+            </select>
+            <button class="btn btn-block" id="btn-continuar">Continuar</button>
+
+            <hr style="margin:24px 0; border-color:#c3d6ea;">
+
+            <label style="font-weight:600;">Registrarme como nuevo cliente</label>
+            <input type="text" id="nuevo-nombre" placeholder="Nombre completo" style="width:100%; padding:8px; margin:8px 0; border-radius:4px; border:1px solid #a9c4e0;">
+            <input type="email" id="nuevo-email" placeholder="Correo electrónico" style="width:100%; padding:8px; margin:8px 0; border-radius:4px; border:1px solid #a9c4e0;">
+            <button class="btn btn-secundario btn-block" id="btn-crear">Registrarme y continuar</button>
+
+            <p id="mensaje-error" style="color:#b3452f; margin-top:10px;"></p>
+        </div>
+    </div>
+
+    <script src="/static/js/common.js"></script>
+    <script src="/static/js/identificarse.js"></script>
+</body>
+</html>

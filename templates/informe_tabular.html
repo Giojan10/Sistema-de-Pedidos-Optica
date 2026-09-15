@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Informe Tabular - Óptica</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="navbar" id="navbar-container"></div>
+
+    <div class="contenedor">
+        <div class="titulo-box">INFORME TABULAR</div>
+        <h2 style="text-align:center;">Informe Tabular Ventas</h2>
+
+        <div class="grid-principal" style="grid-template-columns: 1fr 240px;">
+            <div style="overflow-x:auto;">
+                <table class="informe">
+                    <thead>
+                        <tr>
+                            <th>Id Compra</th><th>Fecha Compra</th><th>Comprador Nombre</th>
+                            <th>Producto</th><th>Color</th><th>Cantidad</th>
+                            <th>Precio Compra</th><th>Estado Compra</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-body"></tbody>
+                </table>
+                <p id="mensaje-vacio" class="mensaje-vacio" style="display:none;">No hay compras que coincidan con el filtro.</p>
+            </div>
+
+            <div class="filtros">
+                <label>Precio:</label>
+                <div class="rango">
+                    <input type="number" id="f-desde" placeholder="Desde">
+                    <input type="number" id="f-hasta" placeholder="Hasta">
+                </div>
+
+                <label>Color:</label>
+                <div class="checkbox-linea"><input type="radio" name="f-color" value="Todos" checked> Todos</div>
+                <div class="checkbox-linea"><input type="radio" name="f-color" value="Verde"> Verde</div>
+                <div class="checkbox-linea"><input type="radio" name="f-color" value="Rojo"> Rojo</div>
+                <div class="checkbox-linea"><input type="radio" name="f-color" value="Azul"> Azul</div>
+
+                <button class="btn btn-block" id="btn-filtrar">Aplicar Filtro</button>
+                <button class="btn btn-secundario btn-block" id="btn-exportar">Exportar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/common.js"></script>
+    <script src="/static/js/informe_tabular.js"></script>
+</body>
+</html>
