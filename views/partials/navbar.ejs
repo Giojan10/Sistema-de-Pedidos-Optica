@@ -1,0 +1,12 @@
+<header class="navbar">
+  <a class="brand" href="/catalogo">Óptica · Pedidos</a>
+  <nav>
+    <a class="<%= active === 'catalogo' ? 'active' : '' %>" href="/catalogo">Catálogo</a>
+    <a class="<%= active === 'carrito' ? 'active' : '' %>" href="/carrito">Carrito</a>
+    <a class="<%= active === 'tabular' ? 'active' : '' %>" href="/informe-tabular">Informe tabular</a>
+    <a class="<%= active === 'consolidado' ? 'active' : '' %>" href="/informe-consolidado">Informe consolidado</a>
+  </nav>
+  <div class="cliente-info"><%= cliente.nombre %>
+    <form class="inline-form" action="/salir" method="post"><button class="link-button" type="submit">Cambiar cliente</button></form>
+  </div>
+</header>

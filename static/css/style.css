@@ -202,6 +202,42 @@ table.informe th { background: #d7e5f5; }
 .checkbox-linea { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
 .checkbox-linea input { width: auto; }
 
+/* Formularios renderizados por el servidor */
+label { display: block; margin: 8px 0 4px; font-weight: 600; font-size: .92rem; }
+input, select { font: inherit; }
+.login { max-width: 480px; margin-top: 60px; }
+.login .panel { padding: 24px; }
+.login input, .login select, .filtros input, .filtros select {
+    width: 100%; padding: 9px 10px; margin: 5px 0 10px;
+    border: 1px solid #a9c4e0; border-radius: 4px; background: white; color: #1c3a5e;
+}
+.login hr { margin: 24px 0; border: 0; border-top: 1px solid #c3d6ea; }
+.navbar .brand { text-decoration: none; }
+.inline-form { display: inline; margin-left: 8px; }
+.link-button { border: 0; background: none; color: #2b5b96; text-decoration: underline; cursor: pointer; font: inherit; }
+.alerta { padding: 10px 14px; background: #e7f4ea; border: 1px solid #b5d7bd; color: #276238; border-radius: 4px; }
+.alerta.error { background: #fbeae7; border-color: #e6b8ae; color: #963a29; }
+.carrito-layout { grid-template-columns: 1fr 280px; }
+.informe-layout { grid-template-columns: 1fr 240px; }
+.center { text-align: center; }
+.table-wrap { overflow-x: auto; }
+.filtros-linea { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
+.filtros-linea > div { min-width: 170px; }
+.filtros-linea .grow { flex: 1; }
+.filtros-linea input, .filtros-linea select { padding: 8px; border: 1px solid #a9c4e0; border-radius: 4px; }
+.report-grid { grid-template-columns: 1fr 1fr; margin-top: 20px; }
+.bar-row { display: grid; grid-template-columns: 90px 1fr 36px; align-items: center; gap: 10px; margin: 14px 0; }
+.bar-track { height: 22px; border-radius: 3px; background: #e5edf6; overflow: hidden; }
+.bar { height: 100%; min-width: 4px; border-radius: 3px; background: #2b5b96; }
+.cantidad-control form { display: inline; }
+.btn:disabled { background: #8799ad; cursor: not-allowed; }
+
+@media (max-width: 900px) {
+    .carrito-layout, .informe-layout, .report-grid { grid-template-columns: 1fr; }
+    .navbar nav { display: flex; flex-wrap: wrap; gap: 4px; }
+    .navbar nav a { margin-left: 0; }
+}
+
 @media (max-width: 900px) {
     .grid-principal, .grid-principal.sin-lateral-derecho { grid-template-columns: 1fr; }
 }
