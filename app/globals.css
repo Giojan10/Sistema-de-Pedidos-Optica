@@ -64,4 +64,18 @@ table.informe th { background: #d7e5f5; }
 .bar-row { display: grid; grid-template-columns: 90px 1fr 36px; align-items: center; gap: 10px; margin: 14px 0; }
 .bar-track { height: 22px; border-radius: 3px; background: #e5edf6; overflow: hidden; }
 .bar { height: 100%; min-width: 4px; border-radius: 3px; background: #2b5b96; }
+.estado-solicitandose { color: #b3452f; font-weight: 600; }
+.estado-en-edicion    { color: #b38000; font-weight: 600; }
+.estado-realizado     { color: #2b7a3f; font-weight: 600; }
+.estado-cancelado     { color: #7a7a7a; font-weight: 600; text-decoration: line-through; }
+.estado-pedido {
+  display: inline-block;
+  background: #eef4fb;
+  border: 1px solid #b9cee6;
+  padding: 6px 12px;
+  border-radius: 4px;
+  margin-bottom: 14px;
+}
+.usuario-inactivo { opacity: 0.5; }
+.usuario-inactivo td { text-decoration: line-through; }
 @media (max-width: 900px) { .grid-principal, .sin-lateral-derecho, .carrito-layout, .informe-layout, .report-grid { grid-template-columns: 1fr; } }

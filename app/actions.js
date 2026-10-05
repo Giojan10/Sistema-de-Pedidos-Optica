@@ -3,165 +3,429 @@
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { connect, query } from '../src/db.js';
-import { getCustomer } from '../src/data.js';
+import { requireUser, requireAdmin } from '../src/session.js';
+
+const SECRET = process.env.SESSION_SECRET || 'dev-secret-cambiar';
 
 function message(path, type, text) {
   redirect(`${path}?${type}=${encodeURIComponent(text)}`);
 }
 
-function positiveInteger(value) {
-  const number = Number(value);
-  return Number.isInteger(number) && number > 0 ? number : null;
+function positiveInteger(v) {
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-export async function chooseCustomer(formData) {
-  const id = positiveInteger(formData.get('id_cliente'));
-  const customer = id ? await getCustomer(id) : null;
-  if (!customer) message('/', 'error', 'Selecciona un cliente válido.');
-  const cookieStore = await cookies();
-  cookieStore.set('clienteId', String(customer.id_cliente), {
-    httpOnly: true, sameSite: 'lax', path: '/', maxAge: 60 * 60 * 24 * 30,
+/* ============================================================
+   AUTENTICACIÓN
+   ============================================================ */
+
+export async function login(formData) {
+  const usuario = String(formData.get('usuario') || '').trim().toLowerCase();
+  const clave = String(formData.get('clave') || '');
+  if (!usuario || !clave) message('/login', 'error', 'Usuario y contraseña obligatorios.');
+
+  const { rows } = await query(
+    'SELECT id_usuario, clave_hash, rol FROM usuarios WHERE usuario=$1 AND activo',
+    [usuario]
+  );
+  const u = rows[0];
+  if (!u || !(await bcrypt.compare(clave, u.clave_hash)))
+    message('/login', 'error', 'Credenciales inválidas.');
+
+  const token = jwt.sign(
+    { id_usuario: u.id_usuario, rol: u.rol },
+    SECRET,
+    { expiresIn: '8h' }
+  );
+  const store = await cookies();
+  store.set('sesion', token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60 * 8,
     secure: process.env.NODE_ENV === 'production',
   });
   redirect('/catalogo');
 }
 
-export async function registerCustomer(formData) {
-  const name = String(formData.get('nombre') || '').trim();
+export async function registerSelf(formData) {
+  const usuario = String(formData.get('usuario') || '').trim().toLowerCase();
+  const clave = String(formData.get('clave') || '');
+  const nombre = String(formData.get('nombre') || '').trim();
   const email = String(formData.get('email') || '').trim() || null;
-  if (!name) message('/', 'error', 'El nombre es obligatorio.');
-  const { rows } = await query('INSERT INTO clientes (nombre,email) VALUES ($1,$2) RETURNING id_cliente,nombre', [name, email]);
-  const cookieStore = await cookies();
-  cookieStore.set('clienteId', String(rows[0].id_cliente), {
-    httpOnly: true, sameSite: 'lax', path: '/', maxAge: 60 * 60 * 24 * 30,
+  if (!usuario || clave.length < 6 || !nombre)
+    message('/registro', 'error', 'Datos inválidos (clave mínimo 6).');
+
+  const hash = await bcrypt.hash(clave, 10);
+  let id;
+  try {
+    const { rows } = await query(
+      `INSERT INTO usuarios (usuario, clave_hash, rol, nombre, email)
+       VALUES ($1,$2,'Operario',$3,$4) RETURNING id_usuario`,
+      [usuario, hash, nombre, email]
+    );
+    id = rows[0].id_usuario;
+  } catch {
+    message('/registro', 'error', 'Ese usuario ya existe.');
+  }
+
+  const token = jwt.sign({ id_usuario: id, rol: 'Operario' }, SECRET, { expiresIn: '8h' });
+  const store = await cookies();
+  store.set('sesion', token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60 * 8,
     secure: process.env.NODE_ENV === 'production',
   });
   redirect('/catalogo');
 }
 
 export async function logout() {
-  const cookieStore = await cookies();
-  cookieStore.delete('clienteId');
-  redirect('/');
+  (await cookies()).delete('sesion');
+  redirect('/login');
+}
+
+/* ============================================================
+   MAESTRO (solo Administrador)
+   ============================================================ */
+
+export async function createUser(formData) {
+  await requireAdmin();
+  const usuario = String(formData.get('usuario') || '').trim().toLowerCase();
+  const clave = String(formData.get('clave') || '');
+  const rol = String(formData.get('rol') || 'Operario');
+  const nombre = String(formData.get('nombre') || '').trim();
+  const email = String(formData.get('email') || '').trim() || null;
+  if (!usuario || clave.length < 6 || !nombre || !['Operario', 'Administrador'].includes(rol))
+    message('/maestro', 'error', 'Datos inválidos.');
+
+  const hash = await bcrypt.hash(clave, 10);
+  try {
+    await query(
+      `INSERT INTO usuarios (usuario, clave_hash, rol, nombre, email)
+       VALUES ($1,$2,$3,$4,$5)`,
+      [usuario, hash, rol, nombre, email]
+    );
+  } catch {
+    message('/maestro', 'error', 'Usuario duplicado.');
+  }
+  revalidatePath('/maestro');
+  message('/maestro', 'mensaje', 'Usuario creado.');
+}
+
+export async function createProduct(formData) {
+  await requireAdmin();
+  const nombre = String(formData.get('nombre') || '').trim();
+  const descripcion = String(formData.get('descripcion') || '').trim() || null;
+  const color = String(formData.get('color') || '').trim();
+  const disponible = positiveInteger(formData.get('cantidad_disponible')) ?? 0;
+  const apartada = positiveInteger(formData.get('cantidad_apartada')) ?? 0;
+  const precio = Number(formData.get('precio_unitario'));
+  if (!nombre || !color || !Number.isFinite(precio) || precio < 0)
+    message('/maestro', 'error', 'Datos del producto inválidos.');
+
+  await query(
+    `INSERT INTO productos (nombre, descripcion, color, cantidad_disponible, cantidad_apartada, precio_unitario)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [nombre, descripcion, color, disponible, apartada, precio]
+  );
+  revalidatePath('/catalogo');
+  revalidatePath('/maestro');
+  message('/maestro', 'mensaje', 'Producto creado.');
+}
+
+export async function deactivateUser(formData) {
+  const admin = await requireAdmin();
+  const id = positiveInteger(formData.get('id_usuario'));
+  if (!id) message('/maestro', 'error', 'Usuario inválido.');
+  if (id === admin.id_usuario)
+    message('/maestro', 'error', 'No puedes desactivar tu propia cuenta.');
+
+  await query('UPDATE usuarios SET activo=false WHERE id_usuario=$1', [id]);
+  revalidatePath('/maestro');
+  message('/maestro', 'mensaje', 'Usuario desactivado.');
+}
+
+export async function reactivateUser(formData) {
+  await requireAdmin();
+  const id = positiveInteger(formData.get('id_usuario'));
+  if (!id) message('/maestro', 'error', 'Usuario inválido.');
+  await query('UPDATE usuarios SET activo=true WHERE id_usuario=$1', [id]);
+  revalidatePath('/maestro');
+  message('/maestro', 'mensaje', 'Usuario reactivado.');
+}
+
+/* ============================================================
+   PEDIDO (reemplaza al antiguo carrito_temp)
+   ============================================================ */
+
+async function getOrCreateOpenOrder(client, idUsuario) {
+  const { rows } = await client.query(
+    `SELECT id_compra FROM compras
+     WHERE id_usuario=$1 AND estado IN ('Solicitándose','En edición')
+     FOR UPDATE`,
+    [idUsuario]
+  );
+  if (rows[0]) return rows[0].id_compra;
+
+  const { rows: created } = await client.query(
+    `INSERT INTO compras (id_usuario, estado) VALUES ($1,'Solicitándose')
+     RETURNING id_compra`,
+    [idUsuario]
+  );
+  return created[0].id_compra;
 }
 
 export async function addToCart(formData) {
-  const idCustomer = await selectedCustomerId();
-  const idProduct = positiveInteger(formData.get('id_producto'));
-  const returnToCart = formData.get('return_to') === 'carrito';
-  if (!idProduct) message('/catalogo', 'error', 'Producto inválido.');
+  const user = await requireUser();
+  const idProducto = positiveInteger(formData.get('id_producto'));
+  const returnToOrder = formData.get('return_to') === 'pedido';
+  if (!idProducto) message('/catalogo', 'error', 'Producto inválido.');
+
   const client = await connect();
-  let outOfStock = false;
+  let sinStock = false;
   try {
     await client.query('BEGIN');
-    const { rows } = await client.query(`UPDATE productos
-      SET cantidad_disponible=cantidad_disponible-1,cantidad_apartada=cantidad_apartada+1
-      WHERE id_producto=$1 AND cantidad_disponible>0 RETURNING id_producto`, [idProduct]);
+
+    const { rows } = await client.query(
+      `UPDATE productos
+       SET cantidad_disponible = cantidad_disponible - 1,
+           cantidad_apartada    = cantidad_apartada + 1
+       WHERE id_producto=$1 AND cantidad_disponible > 0
+       RETURNING precio_unitario`,
+      [idProducto]
+    );
     if (!rows[0]) {
       await client.query('ROLLBACK');
-      outOfStock = true;
+      sinStock = true;
     } else {
-      await client.query(`INSERT INTO carrito_temp (id_cliente,id_producto,cantidad) VALUES ($1,$2,1)
-        ON CONFLICT (id_cliente,id_producto) DO UPDATE SET cantidad=carrito_temp.cantidad+1`, [idCustomer, idProduct]);
+      const precio = rows[0].precio_unitario;
+      const idCompra = await getOrCreateOpenOrder(client, user.id_usuario);
+
+      await client.query(
+        `INSERT INTO compras_detalle (id_compra, id_producto, cantidad, precio_unitario)
+         VALUES ($1,$2,1,$3)
+         ON CONFLICT (id_compra, id_producto)
+         DO UPDATE SET cantidad = compras_detalle.cantidad + 1`,
+        [idCompra, idProducto, precio]
+      );
+
+      await client.query(
+        `UPDATE compras SET actualizado_en=NOW() WHERE id_compra=$1`,
+        [idCompra]
+      );
+
       await client.query('COMMIT');
     }
-  } catch (error) {
+  } catch (e) {
     await client.query('ROLLBACK');
-    throw error;
-  } finally { client.release(); }
-  if (outOfStock) message(returnToCart ? '/carrito' : '/catalogo', 'error', 'No hay inventario disponible para ese producto.');
-  revalidatePath('/carrito');
+    throw e;
+  } finally {
+    client.release();
+  }
+
+  if (sinStock) message(returnToOrder ? '/pedido' : '/catalogo', 'error', 'No hay inventario disponible.');
+  revalidatePath('/pedido');
   revalidatePath('/catalogo');
-  if (returnToCart) redirect('/carrito');
-  message('/catalogo', 'mensaje', 'Producto agregado al carrito.');
+  if (returnToOrder) redirect('/pedido');
+  message('/catalogo', 'mensaje', 'Producto agregado al pedido.');
 }
 
 export async function removeFromCart(formData) {
-  const idCustomer = await selectedCustomerId();
-  const idProduct = positiveInteger(formData.get('id_producto'));
-  if (!idProduct) redirect('/carrito');
+  const user = await requireUser();
+  const idProducto = positiveInteger(formData.get('id_producto'));
+  if (!idProducto) redirect('/pedido');
+
   const client = await connect();
   try {
     await client.query('BEGIN');
-    const { rows } = await client.query('SELECT cantidad FROM carrito_temp WHERE id_cliente=$1 AND id_producto=$2 FOR UPDATE', [idCustomer, idProduct]);
-    if (rows[0]) {
-      await client.query('UPDATE productos SET cantidad_disponible=cantidad_disponible+1,cantidad_apartada=cantidad_apartada-1 WHERE id_producto=$1', [idProduct]);
-      if (rows[0].cantidad <= 1) await client.query('DELETE FROM carrito_temp WHERE id_cliente=$1 AND id_producto=$2', [idCustomer, idProduct]);
-      else await client.query('UPDATE carrito_temp SET cantidad=cantidad-1 WHERE id_cliente=$1 AND id_producto=$2', [idCustomer, idProduct]);
+
+    const { rows: order } = await client.query(
+      `SELECT id_compra, estado FROM compras
+       WHERE id_usuario=$1 AND estado IN ('Solicitándose','En edición')
+       FOR UPDATE`,
+      [user.id_usuario]
+    );
+    if (!order[0]) {
+      await client.query('ROLLBACK');
+      return;
     }
+    const { id_compra: idCompra, estado } = order[0];
+
+    const { rows: det } = await client.query(
+      `SELECT cantidad FROM compras_detalle
+       WHERE id_compra=$1 AND id_producto=$2 FOR UPDATE`,
+      [idCompra, idProducto]
+    );
+    if (!det[0]) {
+      await client.query('ROLLBACK');
+      return;
+    }
+
+    await client.query(
+      `UPDATE productos
+       SET cantidad_disponible = cantidad_disponible + 1,
+           cantidad_apartada    = cantidad_apartada - 1
+       WHERE id_producto=$1`,
+      [idProducto]
+    );
+
+    if (det[0].cantidad <= 1) {
+      await client.query(
+        'DELETE FROM compras_detalle WHERE id_compra=$1 AND id_producto=$2',
+        [idCompra, idProducto]
+      );
+    } else {
+      await client.query(
+        `UPDATE compras_detalle SET cantidad=cantidad-1
+         WHERE id_compra=$1 AND id_producto=$2`,
+        [idCompra, idProducto]
+      );
+    }
+
+    const { rows: restantes } = await client.query(
+      'SELECT COUNT(*)::int AS n FROM compras_detalle WHERE id_compra=$1',
+      [idCompra]
+    );
+    if (restantes[0].n > 0 && estado === 'Solicitándose') {
+      await client.query(
+        `UPDATE compras SET estado='En edición', actualizado_en=NOW()
+         WHERE id_compra=$1`,
+        [idCompra]
+      );
+    } else {
+      await client.query(
+        'UPDATE compras SET actualizado_en=NOW() WHERE id_compra=$1',
+        [idCompra]
+      );
+    }
+
     await client.query('COMMIT');
-  } catch (error) { await client.query('ROLLBACK'); throw error; }
-  finally { client.release(); }
-  revalidatePath('/carrito');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+  revalidatePath('/pedido');
   revalidatePath('/catalogo');
 }
 
 export async function confirmPurchase() {
-  const idCustomer = await selectedCustomerId();
+  const user = await requireUser();
   const client = await connect();
-  let purchaseId;
-  let emptyCart = false;
-  try {
-    await client.query('BEGIN');
-    const { rows: items } = await client.query('SELECT id_producto,cantidad FROM carrito_temp WHERE id_cliente=$1 FOR UPDATE', [idCustomer]);
-    if (!items.length) {
-      await client.query('ROLLBACK');
-      emptyCart = true;
-    } else {
-      const { rows: purchases } = await client.query(`INSERT INTO compras (id_cliente,fecha,hora,estado)
-        VALUES ($1,CURRENT_DATE,LOCALTIME,'Realizado') RETURNING id_compra`, [idCustomer]);
-      purchaseId = purchases[0].id_compra;
-      for (const item of items) {
-        const { rows: products } = await client.query('SELECT precio_unitario FROM productos WHERE id_producto=$1 FOR UPDATE', [item.id_producto]);
-        await client.query('INSERT INTO compras_detalle (id_compra,id_producto,cantidad,precio_unitario) VALUES ($1,$2,$3,$4)', [purchaseId,item.id_producto,item.cantidad,products[0].precio_unitario]);
-        await client.query('UPDATE productos SET cantidad_apartada=cantidad_apartada-$1 WHERE id_producto=$2', [item.cantidad,item.id_producto]);
-      }
-      await client.query('DELETE FROM carrito_temp WHERE id_cliente=$1', [idCustomer]);
-      await client.query('COMMIT');
-    }
-  } catch (error) { await client.query('ROLLBACK'); throw error; }
-  finally { client.release(); }
-  if (emptyCart) message('/carrito', 'error', 'El carrito está vacío.');
-  revalidatePath('/carrito');
-  revalidatePath('/informe-tabular');
-  revalidatePath('/informe-consolidado');
-  message('/carrito', 'mensaje', `¡Pedido #${purchaseId} generado con éxito!`);
-}
+  let idCompra;
 
-export async function cancelPurchase() {
-  const idCustomer = await selectedCustomerId();
-  const client = await connect();
-  let cancelledId;
   try {
     await client.query('BEGIN');
-    const { rows: items } = await client.query(`SELECT c.id_producto,c.cantidad,p.precio_unitario
-      FROM carrito_temp c JOIN productos p USING (id_producto)
-      WHERE c.id_cliente=$1 FOR UPDATE OF c`, [idCustomer]);
-    if (items.length) {
-      const { rows: purchases } = await client.query(`INSERT INTO compras (id_cliente,fecha,hora,estado)
-        VALUES ($1,CURRENT_DATE,LOCALTIME,'Cancelado') RETURNING id_compra`, [idCustomer]);
-      cancelledId = purchases[0].id_compra;
-      for (const item of items) {
-        await client.query('INSERT INTO compras_detalle (id_compra,id_producto,cantidad,precio_unitario) VALUES ($1,$2,$3,$4)', [cancelledId,item.id_producto,item.cantidad,item.precio_unitario]);
-        await client.query('UPDATE productos SET cantidad_disponible=cantidad_disponible+$1,cantidad_apartada=cantidad_apartada-$1 WHERE id_producto=$2', [item.cantidad,item.id_producto]);
-      }
-      await client.query('DELETE FROM carrito_temp WHERE id_cliente=$1', [idCustomer]);
+
+    const { rows: order } = await client.query(
+      `SELECT id_compra FROM compras
+       WHERE id_usuario=$1 AND estado IN ('Solicitándose','En edición')
+       FOR UPDATE`,
+      [user.id_usuario]
+    );
+    if (!order[0]) {
+      await client.query('ROLLBACK');
+      message('/pedido', 'error', 'No tienes un pedido abierto.');
     }
+    idCompra = order[0].id_compra;
+
+    const { rows: det } = await client.query(
+      'SELECT id_producto, cantidad FROM compras_detalle WHERE id_compra=$1 FOR UPDATE',
+      [idCompra]
+    );
+    if (!det.length) {
+      await client.query('ROLLBACK');
+      message('/pedido', 'error', 'El pedido está vacío.');
+    }
+
+    for (const it of det) {
+      await client.query(
+        `UPDATE productos SET cantidad_apartada = cantidad_apartada - $1
+         WHERE id_producto=$2`,
+        [it.cantidad, it.id_producto]
+      );
+    }
+
+    await client.query(
+      `UPDATE compras SET estado='Realizado', actualizado_en=NOW()
+       WHERE id_compra=$1`,
+      [idCompra]
+    );
+
     await client.query('COMMIT');
-  } catch (error) { await client.query('ROLLBACK'); throw error; }
-  finally { client.release(); }
-  if (!cancelledId) message('/carrito', 'error', 'El carrito está vacío.');
-  revalidatePath('/carrito');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+
+  revalidatePath('/pedido');
   revalidatePath('/catalogo');
   revalidatePath('/informe-tabular');
   revalidatePath('/informe-consolidado');
-  message('/carrito', 'mensaje', `Pedido #${cancelledId} cancelado y registrado. Los productos volvieron al inventario.`);
+  message('/pedido', 'mensaje', `¡Pedido #${idCompra} confirmado!`);
 }
 
-async function selectedCustomerId() {
-  const cookieStore = await cookies();
-  const id = positiveInteger(cookieStore.get('clienteId')?.value);
-  if (!id || !(await getCustomer(id))) redirect('/');
-  return id;
+export async function cancelPurchase() {
+  const user = await requireUser();
+  const client = await connect();
+  let idCompra;
+
+  try {
+    await client.query('BEGIN');
+
+    const { rows: order } = await client.query(
+      `SELECT id_compra FROM compras
+       WHERE id_usuario=$1 AND estado IN ('Solicitándose','En edición')
+       FOR UPDATE`,
+      [user.id_usuario]
+    );
+    if (!order[0]) {
+      await client.query('ROLLBACK');
+      message('/pedido', 'error', 'No tienes un pedido abierto.');
+    }
+    idCompra = order[0].id_compra;
+
+    const { rows: det } = await client.query(
+      'SELECT id_producto, cantidad FROM compras_detalle WHERE id_compra=$1 FOR UPDATE',
+      [idCompra]
+    );
+
+    for (const it of det) {
+      await client.query(
+        `UPDATE productos
+         SET cantidad_disponible = cantidad_disponible + $1,
+             cantidad_apartada    = cantidad_apartada - $1
+         WHERE id_producto=$2`,
+        [it.cantidad, it.id_producto]
+      );
+    }
+
+    await client.query(
+      `UPDATE compras SET estado='Cancelado', actualizado_en=NOW()
+       WHERE id_compra=$1`,
+      [idCompra]
+    );
+
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+
+  revalidatePath('/pedido');
+  revalidatePath('/catalogo');
+  revalidatePath('/informe-tabular');
+  revalidatePath('/informe-consolidado');
+  message('/pedido', 'mensaje', `Pedido #${idCompra} cancelado. Inventario devuelto.`);
 }
