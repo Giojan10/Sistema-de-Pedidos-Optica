@@ -58,13 +58,16 @@ export default async function ConsolidatedReportPage({ searchParams }) {
         <div className="grid-principal report-grid">
           <section>
             <h3>Rendimiento de ventas por color</h3>
+            <p className="subtitulo">Solo se contabilizan pedidos en estado <strong>Realizado</strong>.</p>
             <div className="table-wrap">
               <table className="informe">
                 <thead>
                   <tr>
-                    <th>Color</th><th>Unidades vendidas</th><th>Precio promedio</th>
-                    <th>Ingresos totales</th><th>Unidades canceladas</th>
-                    <th>Valor cancelado</th><th>Inventario disponible</th>
+                    <th>Color</th>
+                    <th>Unidades vendidas</th>
+                    <th>Precio promedio</th>
+                    <th>Ingresos totales</th>
+                    <th>Inventario disponible</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -74,15 +77,13 @@ export default async function ConsolidatedReportPage({ searchParams }) {
                       <td>{r.total_productos_vendidos}</td>
                       <td>${Number(r.promedio_precio).toFixed(2)}</td>
                       <td>${Number(r.ingresos_totales).toFixed(2)}</td>
-                      <td>{r.unidades_canceladas}</td>
-                      <td>${Number(r.valor_cancelado).toFixed(2)}</td>
                       <td>{r.productos_en_inventario}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            {!rows.length && <p className="mensaje-vacio">No hay datos para el periodo seleccionado.</p>}
+            {!rows.length && <p className="mensaje-vacio">No hay pedidos realizados para el periodo seleccionado.</p>}
             <p><strong>Usuario:</strong> {seleccionado?.nombre || 'Todos'}</p>
           </section>
 

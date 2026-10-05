@@ -17,10 +17,12 @@ export async function GET(request) {
     fecha_final: params.get('fecha_final') || '',
     id_usuario: params.get('id_usuario') || '',
   });
-  const header = ['Color','Total Productos Vendidos','Promedio Precio','Ingresos Totales','Unidades Canceladas','Valor Cancelado','Productos en Inventario'];
+  const header = ['Color', 'Total Productos Vendidos', 'Promedio Precio', 'Ingresos Totales', 'Productos en Inventario'];
   const values = rows.map(r => [
-    r.color, r.total_productos_vendidos, r.promedio_precio,
-    r.ingresos_totales, r.unidades_canceladas, r.valor_cancelado,
+    r.color,
+    r.total_productos_vendidos,
+    r.promedio_precio,
+    r.ingresos_totales,
     r.productos_en_inventario,
   ]);
   const csv = '\uFEFF' + [header, ...values].map(row => row.map(csvCell).join(',')).join('\r\n');

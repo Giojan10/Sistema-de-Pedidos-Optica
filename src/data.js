@@ -138,7 +138,8 @@ export async function getTabularReport(filters = {}) {
 
 export async function getConsolidatedReport(filters = {}) {
   const params = [];
-  const where = [];
+  const where = [`co.estado = 'Realizado'`]; // ← solo pedidos confirmados
+
   if (dateFilter(filters.fecha_inicio)) {
     params.push(filters.fecha_inicio);
     where.push(`co.fecha >= $${params.length}::date`);
@@ -156,25 +157,23 @@ export async function getConsolidatedReport(filters = {}) {
     query(
       `WITH ventas AS (
          SELECT p.color,
-           COALESCE(SUM(cd.cantidad) FILTER (WHERE co.estado <> 'Cancelado'),0)::int AS total_productos_vendidos,
-           COALESCE(ROUND(AVG(cd.precio_unitario) FILTER (WHERE co.estado <> 'Cancelado'),2),0) AS promedio_precio,
-           COALESCE(ROUND(SUM(cd.cantidad*cd.precio_unitario) FILTER (WHERE co.estado <> 'Cancelado'),2),0) AS ingresos_totales,
-           COALESCE(SUM(cd.cantidad) FILTER (WHERE co.estado = 'Cancelado'),0)::int AS unidades_canceladas,
-           COALESCE(ROUND(SUM(cd.cantidad*cd.precio_unitario) FILTER (WHERE co.estado = 'Cancelado'),2),0) AS valor_cancelado
+           COALESCE(SUM(cd.cantidad),0)::int AS total_productos_vendidos,
+           COALESCE(ROUND(AVG(cd.precio_unitario),2),0) AS promedio_precio,
+           COALESCE(ROUND(SUM(cd.cantidad*cd.precio_unitario),2),0) AS ingresos_totales
          FROM compras_detalle cd
          JOIN compras co USING (id_compra)
          JOIN productos p USING (id_producto)
-         ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+         WHERE ${where.join(' AND ')}
          GROUP BY p.color
        ), inventario AS (
          SELECT color, SUM(cantidad_disponible)::int AS productos_en_inventario
          FROM productos GROUP BY color
        )
        SELECT v.color, v.total_productos_vendidos, v.promedio_precio,
-              v.ingresos_totales, v.unidades_canceladas, v.valor_cancelado,
+              v.ingresos_totales,
               COALESCE(i.productos_en_inventario,0) AS productos_en_inventario
        FROM ventas v LEFT JOIN inventario i USING (color)
-       ORDER BY v.total_productos_vendidos DESC, v.unidades_canceladas DESC`,
+       ORDER BY v.total_productos_vendidos DESC`,
       params
     ),
     listUsuarios(),

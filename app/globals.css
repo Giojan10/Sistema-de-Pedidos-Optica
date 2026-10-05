@@ -83,7 +83,6 @@ table.informe th { background: #d7e5f5; }
 }
 .usuario-inactivo { opacity: 0.5; }
 .usuario-inactivo td { text-decoration: line-through; }
-/* Tabla de productos en el maestro */
 .thumb-producto {
   width: 48px;
   height: 48px;
@@ -95,10 +94,8 @@ table.informe th { background: #d7e5f5; }
 .thumb-producto.placeholder {
   background: linear-gradient(180deg, #dfeaf7, #7ba7d6);
 }
-
 .acciones-producto { vertical-align: top; }
 .acciones-producto form.inline { display: inline-block; margin-right: 6px; }
-
 details > summary {
   cursor: pointer;
   display: inline-block;
@@ -106,7 +103,6 @@ details > summary {
   color: #2b5b96;
   text-decoration: underline;
 }
-
 .form-editar-producto {
   background: #f4f8fc;
   border: 1px solid #c3d6ea;
@@ -125,7 +121,7 @@ details > summary {
   background: #fff;
   margin-bottom: 6px;
 }
-
+.subtitulo { font-size: .85rem; color: #5a7590; margin: -6px 0 12px; }
 .check-inline {
   display: flex;
   align-items: center;
@@ -134,6 +130,5 @@ details > summary {
   font-weight: normal;
 }
 .check-inline input { width: auto; margin: 0; }
-
 .link-button.danger { color: #b3452f; }
 @media (max-width: 900px) { .grid-principal, .sin-lateral-derecho, .carrito-layout, .informe-layout, .report-grid { grid-template-columns: 1fr; } }
