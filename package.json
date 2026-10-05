@@ -9,8 +9,12 @@
     "build": "next build",
     "start": "next start"
   },
-  "engines": { "node": ">=20.9" },
+  "engines": {
+    "node": ">=20.9"
+  },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "jsonwebtoken": "^9.0.2",
     "next": "^16.1.0",
     "pg": "^8.13.1",
     "react": "^19.2.0",
