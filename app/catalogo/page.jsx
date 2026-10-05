@@ -57,7 +57,15 @@ export default async function CatalogPage({ searchParams }) {
             <div className="productos-grid">
               {products.map(product => (
                 <article className="producto-card" key={product.id_producto}>
-                  <div className="producto-imagen" />
+                  {product.imagen_url ? (
+                    <img
+                      src={product.imagen_url}
+                      alt={product.nombre}
+                      className="producto-imagen"
+                    />
+                  ) : (
+                    <div className="producto-imagen" />
+                  )}
                   <div className="producto-precio">${Number(product.precio_unitario).toFixed(2)}</div>
                   <div className="producto-nombre">{product.nombre}</div>
                   <div className="producto-desc">{product.descripcion || ''} · Color: {product.color}</div>

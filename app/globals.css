@@ -38,6 +38,11 @@ input, select { font: inherit; }
 .productos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; }
 .producto-card { padding: 14px; }
 .producto-imagen { height: 130px; border-radius: 4px; background: linear-gradient(180deg, #dfeaf7, #7ba7d6); margin-bottom: 10px; }
+img.producto-imagen {
+  object-fit: cover;
+  display: block;
+  width: 100%;
+}
 .producto-precio { color: #2b5b96; font-weight: 700; }
 .producto-nombre { font-weight: 600; margin: 4px 0 0; }
 .producto-desc { font-size: .85rem; color: #5a7590; margin: 2px 0 10px; }

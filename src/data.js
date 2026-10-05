@@ -66,7 +66,7 @@ export async function getOpenOrder(userId) {
   if (!order[0]) return { order: null, items: [], total: 0 };
 
   const { rows: items } = await query(
-    `SELECT p.id_producto, p.nombre, p.descripcion, p.color,
+    `SELECT p.id_producto, p.nombre, p.descripcion, p.color, p.imagen_url,
             p.precio_unitario, cd.cantidad
      FROM compras_detalle cd
      JOIN productos p USING (id_producto)
@@ -76,8 +76,7 @@ export async function getOpenOrder(userId) {
   );
 
   const total = items.reduce(
-    (s, i) => s + Number(i.precio_unitario) * i.cantidad,
-    0
+    (s, i) => s + Number(i.precio_unitario) * i.cantidad, 0
   );
   return { order: order[0], items, total };
 }

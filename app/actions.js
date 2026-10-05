@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { connect, query } from '../src/db.js';
+import { supabaseAdmin } from '../src/supabase.js';
 import { requireUser, requireAdmin } from '../src/session.js';
 
 const SECRET = process.env.SESSION_SECRET || 'dev-secret-cambiar';
@@ -126,13 +127,39 @@ export async function createProduct(formData) {
   const disponible = positiveInteger(formData.get('cantidad_disponible')) ?? 0;
   const apartada = positiveInteger(formData.get('cantidad_apartada')) ?? 0;
   const precio = Number(formData.get('precio_unitario'));
+  const archivo = formData.get('imagen'); // File
+
   if (!nombre || !color || !Number.isFinite(precio) || precio < 0)
     message('/maestro', 'error', 'Datos del producto inválidos.');
 
+  let imagen_url = null;
+
+  if (archivo && typeof archivo !== 'string' && archivo.size > 0) {
+    // Validaciones
+    if (archivo.size > 2 * 1024 * 1024)
+      message('/maestro', 'error', 'La imagen no puede superar 2 MB.');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(archivo.type))
+      message('/maestro', 'error', 'Formato no permitido (jpg, png, webp).');
+
+    const ext = archivo.name.split('.').pop().toLowerCase();
+    const path = `${Date.now()}-${crypto.randomUUID()}.${ext}`;
+    const buffer = Buffer.from(await archivo.arrayBuffer());
+
+    const { error } = await supabaseAdmin.storage
+      .from('productos')
+      .upload(path, buffer, { contentType: archivo.type, upsert: false });
+
+    if (error) message('/maestro', 'error', 'No se pudo subir la imagen.');
+
+    const { data } = supabaseAdmin.storage.from('productos').getPublicUrl(path);
+    imagen_url = data.publicUrl;
+  }
+
   await query(
-    `INSERT INTO productos (nombre, descripcion, color, cantidad_disponible, cantidad_apartada, precio_unitario)
-     VALUES ($1,$2,$3,$4,$5,$6)`,
-    [nombre, descripcion, color, disponible, apartada, precio]
+    `INSERT INTO productos
+       (nombre, descripcion, color, imagen_url, cantidad_disponible, cantidad_apartada, precio_unitario)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [nombre, descripcion, color, imagen_url, disponible, apartada, precio]
   );
   revalidatePath('/catalogo');
   revalidatePath('/maestro');

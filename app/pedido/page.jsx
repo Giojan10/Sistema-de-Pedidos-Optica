@@ -31,7 +31,11 @@ export default async function OrderPage({ searchParams }) {
             <div className="productos-grid">
               {items.map(item => (
                 <article className="producto-card" key={item.id_producto}>
-                  <div className="producto-imagen" />
+                  {item.imagen_url ? (
+                    <img src={item.imagen_url} alt={item.nombre} className="producto-imagen" />
+                  ) : (
+                    <div className="producto-imagen" />
+                  )}
                   <div className="producto-precio">
                     ${(Number(item.precio_unitario) * item.cantidad).toFixed(2)}
                   </div>

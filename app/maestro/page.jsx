@@ -40,13 +40,15 @@ export default async function MaestroPage({ searchParams }) {
 
           <section className="panel">
             <h3>Crear producto</h3>
-            <form action={createProduct}>
+            <form action={createProduct} encType="multipart/form-data">
               <label>Nombre</label><input name="nombre" required />
               <label>Descripción</label><input name="descripcion" />
               <label>Color</label>
               <select name="color" defaultValue="Negro">
                 {['Verde','Rojo','Azul','Metálico','Negro'].map(c => <option key={c}>{c}</option>)}
               </select>
+              <label>Imagen (jpg/png/webp, máx 2 MB)</label>
+              <input name="imagen" type="file" accept="image/*" />
               <label>Cantidad disponible</label>
               <input name="cantidad_disponible" type="number" min="0" defaultValue="0" />
               <label>Cantidad apartada</label>
