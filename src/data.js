@@ -23,13 +23,22 @@ export async function getUser(id) {
 
 /* ---------------- Productos ---------------- */
 
-export async function listProducts(filters = {}) {
+export async function listProductsAdmin() {
+  const { rows } = await query(
+    `SELECT * FROM productos ORDER BY activo DESC, nombre`
+  );
+  return rows;
+}
+
+export async function listProducts(filters = {}, { incluirInactivos = false } = {}) {
   const params = [];
   const where = [];
   const add = (value, condition) => {
     params.push(value);
     where.push(condition.replace('?', `$${params.length}`));
   };
+
+  if (!incluirInactivos) where.push('activo = TRUE');
   if (String(filters.buscar || '').trim())
     add(`%${String(filters.buscar).trim()}%`, 'nombre ILIKE ?');
   if (filters.color && filters.color !== 'Todos')

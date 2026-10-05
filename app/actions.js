@@ -456,3 +456,132 @@ export async function cancelPurchase() {
   revalidatePath('/informe-consolidado');
   message('/pedido', 'mensaje', `Pedido #${idCompra} cancelado. Inventario devuelto.`);
 }
+
+/* ============================================================
+   PRODUCTOS · editar / eliminar / activar
+   ============================================================ */
+
+const TIPOS_PERMITIDOS = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const TAMANO_MAX = 2 * 1024 * 1024;
+
+async function subirImagen(archivo) {
+  if (archivo.size > TAMANO_MAX)
+    message('/maestro', 'error', 'La imagen no puede superar 2 MB.');
+  if (!TIPOS_PERMITIDOS.includes(archivo.type))
+    message('/maestro', 'error', 'Formato no permitido (jpg, png, webp, gif).');
+
+  const ext = archivo.name.split('.').pop().toLowerCase();
+  const path = `${Date.now()}-${crypto.randomUUID()}.${ext}`;
+  const buffer = Buffer.from(await archivo.arrayBuffer());
+
+  const { error } = await supabaseAdmin.storage
+    .from('productos')
+    .upload(path, buffer, { contentType: archivo.type, upsert: false });
+
+  if (error)
+    message('/maestro', 'error', `No se pudo subir la imagen: ${error.message}`);
+
+  const { data } = supabaseAdmin.storage.from('productos').getPublicUrl(path);
+  return data.publicUrl;
+}
+
+export async function updateProduct(formData) {
+  await requireAdmin();
+
+  const id = positiveInteger(formData.get('id_producto'));
+  if (!id) message('/maestro', 'error', 'Producto inválido.');
+
+  const nombre      = String(formData.get('nombre') || '').trim();
+  const descripcion = String(formData.get('descripcion') || '').trim() || null;
+  const color       = String(formData.get('color') || '').trim();
+  const precio      = Number(formData.get('precio_unitario'));
+  const disponible  = positiveInteger(formData.get('cantidad_disponible')) ?? 0;
+  const imagen_url_input = String(formData.get('imagen_url') || '').trim();
+  const archivo     = formData.get('imagen');
+  const quitarImagen = formData.get('quitar_imagen') === 'on';
+
+  if (!nombre || !color || !Number.isFinite(precio) || precio < 0)
+    message('/maestro', 'error', 'Datos del producto inválidos.');
+
+  // Lee el producto actual
+  const { rows: actual } = await query(
+    'SELECT imagen_url FROM productos WHERE id_producto=$1',
+    [id]
+  );
+  if (!actual[0]) message('/maestro', 'error', 'Producto no encontrado.');
+
+  // Decide la nueva imagen_url
+  let imagen_url = actual[0].imagen_url;
+
+  if (archivo && typeof archivo !== 'string' && archivo.size > 0) {
+    // Sube archivo nuevo → gana sobre todo lo demás
+    imagen_url = await subirImagen(archivo);
+  } else if (imagen_url_input) {
+    if (!/^https?:\/\//i.test(imagen_url_input))
+      message('/maestro', 'error', 'La URL debe empezar por http:// o https://');
+    imagen_url = imagen_url_input;
+  } else if (quitarImagen) {
+    imagen_url = null;
+  }
+
+  await query(
+    `UPDATE productos
+     SET nombre=$1, descripcion=$2, color=$3, precio_unitario=$4,
+         cantidad_disponible=$5, imagen_url=$6
+     WHERE id_producto=$7`,
+    [nombre, descripcion, color, precio, disponible, imagen_url, id]
+  );
+
+  revalidatePath('/catalogo');
+  revalidatePath('/maestro');
+  message('/maestro', 'mensaje', 'Producto actualizado.');
+}
+
+export async function deleteProduct(formData) {
+  await requireAdmin();
+  const id = positiveInteger(formData.get('id_producto'));
+  if (!id) message('/maestro', 'error', 'Producto inválido.');
+
+  // Verifica ventas asociadas
+  const { rows: usos } = await query(
+    'SELECT COUNT(*)::int AS n FROM compras_detalle WHERE id_producto=$1',
+    [id]
+  );
+  if (usos[0].n > 0)
+    message(
+      '/maestro',
+      'error',
+      `No se puede eliminar: el producto aparece en ${usos[0].n} venta(s). Desactívalo en su lugar.`
+    );
+
+  // También verifica carritos/pedidos abiertos
+  const { rows: abiertos } = await query(
+    `SELECT COUNT(*)::int AS n
+     FROM compras_detalle cd
+     JOIN compras c USING (id_compra)
+     WHERE cd.id_producto=$1 AND c.estado IN ('Solicitándose','En edición')`,
+    [id]
+  );
+  if (abiertos[0].n > 0)
+    message('/maestro', 'error', 'El producto está en pedidos abiertos. No se puede eliminar.');
+
+  await query('DELETE FROM productos WHERE id_producto=$1', [id]);
+
+  revalidatePath('/catalogo');
+  revalidatePath('/maestro');
+  message('/maestro', 'mensaje', 'Producto eliminado.');
+}
+
+export async function toggleProductActive(formData) {
+  await requireAdmin();
+  const id = positiveInteger(formData.get('id_producto'));
+  if (!id) message('/maestro', 'error', 'Producto inválido.');
+
+  await query(
+    'UPDATE productos SET activo = NOT activo WHERE id_producto=$1',
+    [id]
+  );
+  revalidatePath('/catalogo');
+  revalidatePath('/maestro');
+  message('/maestro', 'mensaje', 'Estado del producto actualizado.');
+}
