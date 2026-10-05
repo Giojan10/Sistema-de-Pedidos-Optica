@@ -1,44 +1,47 @@
 # Sistema de pedidos para óptica
 
-Aplicación web construida con **Node.js, Express, EJS y PostgreSQL**. El servidor entrega las páginas HTML y procesa directamente los formularios; la aplicación no necesita una API JSON ni un backend en otro lenguaje.
+Aplicación web de **Next.js (App Router) y PostgreSQL**. Las páginas consultan la base de datos en el servidor y los formularios usan Server Actions de Next.js. No requiere un backend Express ni una API JSON separada.
 
 ## Funcionalidades
 
-- Identificación de un cliente existente o registro sencillo de uno nuevo.
-- Catálogo con búsqueda, filtros por precio y color, y orden por precio o nombre.
-- Carrito con reserva de inventario, ajuste de cantidades, confirmación de compra y cancelación.
-- Informe de ventas tabular con filtros y descarga CSV.
-- Informe consolidado por color con filtros de fecha/cliente, gráfico y descarga CSV.
+- Identificación de clientes existentes y registro sencillo.
+- Catálogo con búsqueda, filtros por precio y color y ordenamiento.
+- Carrito que reserva inventario, permite ajustar cantidades, confirmar compras y cancelar pedidos.
+- Informes tabular y consolidado por color, con filtros, gráfico y exportación CSV.
 
 ## Requisitos
 
-- Node.js 20 o posterior
+- Node.js 20.9 o posterior
 - PostgreSQL 13 o posterior
 
-## Configuración
+## Configuración local
 
-1. Crea una base de datos PostgreSQL, por ejemplo `optica_pedidos`.
-2. Copia `.env.example` como `.env` y ajusta `DATABASE_URL` a las credenciales de tu instancia. Cambia también `SESSION_SECRET`.
-3. Instala las dependencias e inicia el servidor:
+1. Crea en PostgreSQL la base de datos `optica_pedidos`.
+2. Copia `.env.example` como `.env` y configura `DATABASE_URL` con el usuario y contraseña PostgreSQL. Cambia también `SESSION_SECRET`.
+3. Instala dependencias y ejecuta el servidor de desarrollo:
 
 ```bash
 npm install
-npm start
+npm run dev
 ```
 
-La primera ejecución crea las tablas y carga datos de ejemplo cuando las tablas están vacías. Después abre <http://localhost:3000>.
+Abre <http://localhost:3000>. En su primera conexión, la aplicación crea las tablas y añade información de ejemplo si están vacías.
 
-Para desarrollo con reinicio al cambiar archivos: `npm run dev`.
+Para compilar y ejecutar en producción:
+
+```bash
+npm run build
+npm start
+```
 
 ## Estructura
 
 ```text
-src/server.js       Rutas web, reglas de negocio y renderizado
-src/db.js           Conexión e inicialización de PostgreSQL
-database/schema.sql Tablas e información inicial idempotente
-views/              Plantillas EJS renderizadas por Express
-static/css/         Estilos
-images/             Recursos gráficos
+app/                  Páginas Next.js, Server Actions y descargas CSV
+src/db.js             Conexión e inicialización de PostgreSQL
+src/data.js           Consultas de catálogo, carrito e informes
+database/schema.sql   Esquema PostgreSQL y datos de ejemplo
+public/               Archivos estáticos
 ```
 
-La sesión del navegador mantiene el cliente seleccionado. Las operaciones de carrito que actualizan inventario se ejecutan dentro de transacciones PostgreSQL.
+El cliente seleccionado se conserva en una cookie HttpOnly. Las operaciones del carrito que cambian el inventario se ejecutan dentro de transacciones PostgreSQL.

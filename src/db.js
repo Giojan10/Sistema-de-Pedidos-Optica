@@ -1,12 +1,30 @@
-const fs = require('node:fs');
-const path = require('node:path');
-const { Pool } = require('pg');
+import fs from 'node:fs';
+import path from 'node:path';
+import { Pool } from 'pg';
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+let initialization;
 
-async function initializeDatabase() {
-  const schema = fs.readFileSync(path.join(__dirname, '..', 'database', 'schema.sql'), 'utf8');
-  await pool.query(schema);
+export async function ensureDatabase() {
+  if (!initialization) {
+    initialization = fs.promises.readFile(path.join(process.cwd(), 'database', 'schema.sql'), 'utf8')
+      .then(schema => pool.query(schema))
+      .catch(error => {
+        initialization = undefined;
+        throw error;
+      });
+  }
+  return initialization;
 }
 
-module.exports = { pool, initializeDatabase };
+export async function query(text, values = []) {
+  await ensureDatabase();
+  return pool.query(text, values);
+}
+
+export async function connect() {
+  await ensureDatabase();
+  return pool.connect();
+}
+
+export { pool };
