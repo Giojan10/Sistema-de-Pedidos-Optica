@@ -54,6 +54,7 @@ table.informe th, table.informe td { border: 1px solid #b9cee6; padding: 8px 10p
 table.informe th { background: #d7e5f5; }
 .estado-pendiente { color: #b3452f; font-weight: 600; }
 .estado-realizado { color: #2b7a3f; font-weight: 600; }
+.estado-cancelado { color: #7a7a7a; font-weight: 600; text-decoration: line-through; }
 .mensaje-vacio { color: #6b829c; font-style: italic; padding: 20px; text-align: center; }
 .alerta { padding: 10px 14px; background: #e7f4ea; border: 1px solid #b5d7bd; color: #276238; border-radius: 4px; }
 .alerta.error { background: #fbeae7; border-color: #e6b8ae; color: #963a29; }

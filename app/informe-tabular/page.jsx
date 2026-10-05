@@ -7,7 +7,7 @@ function value(param) { return Array.isArray(param) ? param[0] : param || ''; }
 
 export default async function TabularReportPage({ searchParams }) {
   const [customer, params] = await Promise.all([requireCustomer(), searchParams]);
-  const filters = { precio_desde: value(params.precio_desde), precio_hasta: value(params.precio_hasta), color: value(params.color) || 'Todos' };
+  const filters = { precio_desde: value(params.precio_desde), precio_hasta: value(params.precio_hasta), color: value(params.color) || 'Todos', estado: value(params.estado) || 'Todos' };
   const rows = await getTabularReport(filters);
   const exportQuery = new URLSearchParams(Object.entries(filters).filter(([, v]) => v));
   return <>
@@ -15,11 +15,12 @@ export default async function TabularReportPage({ searchParams }) {
     <main className="contenedor"><div className="titulo-box">INFORME TABULAR</div><h2 className="center">Ventas</h2>
       <div className="grid-principal informe-layout">
         <section className="table-wrap"><table className="informe"><thead><tr><th>Id compra</th><th>Fecha</th><th>Comprador</th><th>Producto</th><th>Color</th><th>Cantidad</th><th>Precio compra</th><th>Estado</th></tr></thead>
-          <tbody>{rows.map((row, index) => <tr key={`${row.id_compra}-${row.producto}-${index}`}><td>{row.id_compra}</td><td>{String(row.fecha_compra).slice(0, 10)}</td><td>{row.comprador_nombre}</td><td>{row.producto}</td><td>{row.color}</td><td>{row.cantidad}</td><td>${Number(row.precio_compra).toFixed(2)}</td><td className={row.estado_compra === 'Realizado' ? 'estado-realizado' : 'estado-pendiente'}>{row.estado_compra}</td></tr>)}</tbody>
+          <tbody>{rows.map((row, index) => <tr key={`${row.id_compra}-${row.producto}-${index}`}><td>{row.id_compra}</td><td>{String(row.fecha_compra).slice(0, 10)}</td><td>{row.comprador_nombre}</td><td>{row.producto}</td><td>{row.color}</td><td>{row.cantidad}</td><td>${Number(row.precio_compra).toFixed(2)}</td><td className={`estado-${String(row.estado_compra).toLowerCase()}`}>{row.estado_compra}</td></tr>)}</tbody>
         </table>{!rows.length && <p className="mensaje-vacio">No hay compras que coincidan con el filtro.</p>}</section>
         <form className="filtros" method="get">
           <label>Precio total por línea:</label><div className="rango"><input type="number" min="0" step="0.01" name="precio_desde" placeholder="Desde" defaultValue={filters.precio_desde} /><input type="number" min="0" step="0.01" name="precio_hasta" placeholder="Hasta" defaultValue={filters.precio_hasta} /></div>
           <label htmlFor="color">Color:</label><select id="color" name="color" defaultValue={filters.color}>{['Todos','Verde','Rojo','Azul','Metálico','Negro'].map(color => <option key={color}>{color}</option>)}</select>
+          <label htmlFor="estado">Estado:</label><select id="estado" name="estado" defaultValue={filters.estado}>{['Todos','Pendiente','Realizado','Cancelado'].map(estado => <option key={estado}>{estado}</option>)}</select>
           <button className="btn btn-block">Aplicar filtro</button><Link className="btn btn-secundario btn-block" href={`/informe-tabular/exportar?${exportQuery}`}>Exportar CSV</Link>
         </form>
       </div>

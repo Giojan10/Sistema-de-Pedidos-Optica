@@ -132,17 +132,31 @@ export async function confirmPurchase() {
 export async function cancelPurchase() {
   const idCustomer = await selectedCustomerId();
   const client = await connect();
+  let cancelledId;
   try {
     await client.query('BEGIN');
-    const { rows: items } = await client.query('SELECT id_producto,cantidad FROM carrito_temp WHERE id_cliente=$1 FOR UPDATE', [idCustomer]);
-    for (const item of items) await client.query('UPDATE productos SET cantidad_disponible=cantidad_disponible+$1,cantidad_apartada=cantidad_apartada-$1 WHERE id_producto=$2', [item.cantidad,item.id_producto]);
-    await client.query('DELETE FROM carrito_temp WHERE id_cliente=$1', [idCustomer]);
+    const { rows: items } = await client.query(`SELECT c.id_producto,c.cantidad,p.precio_unitario
+      FROM carrito_temp c JOIN productos p USING (id_producto)
+      WHERE c.id_cliente=$1 FOR UPDATE OF c`, [idCustomer]);
+    if (items.length) {
+      const { rows: purchases } = await client.query(`INSERT INTO compras (id_cliente,fecha,hora,estado)
+        VALUES ($1,CURRENT_DATE,LOCALTIME,'Cancelado') RETURNING id_compra`, [idCustomer]);
+      cancelledId = purchases[0].id_compra;
+      for (const item of items) {
+        await client.query('INSERT INTO compras_detalle (id_compra,id_producto,cantidad,precio_unitario) VALUES ($1,$2,$3,$4)', [cancelledId,item.id_producto,item.cantidad,item.precio_unitario]);
+        await client.query('UPDATE productos SET cantidad_disponible=cantidad_disponible+$1,cantidad_apartada=cantidad_apartada-$1 WHERE id_producto=$2', [item.cantidad,item.id_producto]);
+      }
+      await client.query('DELETE FROM carrito_temp WHERE id_cliente=$1', [idCustomer]);
+    }
     await client.query('COMMIT');
   } catch (error) { await client.query('ROLLBACK'); throw error; }
   finally { client.release(); }
+  if (!cancelledId) message('/carrito', 'error', 'El carrito está vacío.');
   revalidatePath('/carrito');
   revalidatePath('/catalogo');
-  message('/carrito', 'mensaje', 'Compra cancelada. Los productos volvieron al inventario.');
+  revalidatePath('/informe-tabular');
+  revalidatePath('/informe-consolidado');
+  message('/carrito', 'mensaje', `Pedido #${cancelledId} cancelado y registrado. Los productos volvieron al inventario.`);
 }
 
 async function selectedCustomerId() {

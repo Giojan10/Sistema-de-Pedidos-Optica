@@ -23,8 +23,8 @@ export default async function ConsolidatedReportPage({ searchParams }) {
         <button className="btn">Aplicar</button><Link className="btn btn-secundario" href={`/informe-consolidado/exportar?${exportQuery}`}>Exportar CSV</Link>
       </form>
       <div className="grid-principal report-grid">
-        <section><h3>Rendimiento de ventas por color</h3><div className="table-wrap"><table className="informe"><thead><tr><th>Color</th><th>Unidades vendidas</th><th>Precio promedio</th><th>Ingresos totales</th><th>Inventario disponible</th></tr></thead>
-          <tbody>{rows.map(row => <tr key={row.color}><td>{row.color}</td><td>{row.total_productos_vendidos}</td><td>${Number(row.promedio_precio).toFixed(2)}</td><td>${Number(row.ingresos_totales).toFixed(2)}</td><td>{row.productos_en_inventario}</td></tr>)}</tbody>
+        <section><h3>Rendimiento de ventas por color</h3><div className="table-wrap"><table className="informe"><thead><tr><th>Color</th><th>Unidades vendidas</th><th>Precio promedio</th><th>Ingresos totales</th><th>Unidades canceladas</th><th>Valor cancelado</th><th>Inventario disponible</th></tr></thead>
+          <tbody>{rows.map(row => <tr key={row.color}><td>{row.color}</td><td>{row.total_productos_vendidos}</td><td>${Number(row.promedio_precio).toFixed(2)}</td><td>${Number(row.ingresos_totales).toFixed(2)}</td><td>{row.unidades_canceladas}</td><td>${Number(row.valor_cancelado).toFixed(2)}</td><td>{row.productos_en_inventario}</td></tr>)}</tbody>
         </table></div>{!rows.length && <p className="mensaje-vacio">No hay datos para el periodo seleccionado.</p>}<p><strong>Cliente:</strong> {selectedCustomer?.nombre || 'Todos'}</p></section>
         <section className="grafico-caja"><h3>Unidades vendidas por color</h3>{rows.map(row => <div className="bar-row" key={row.color}><span>{row.color}</span><div className="bar-track"><div className="bar" style={{ width: `${Math.max(3, Number(row.total_productos_vendidos) / max * 100)}%` }} /></div><strong>{row.total_productos_vendidos}</strong></div>)}{!rows.length && <p className="mensaje-vacio">Sin datos para graficar.</p>}</section>
       </div>

@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS compras (
   id_cliente INTEGER NOT NULL REFERENCES clientes(id_cliente),
   fecha DATE NOT NULL,
   hora TIME NOT NULL,
-  estado TEXT NOT NULL DEFAULT 'Pendiente' CHECK (estado IN ('Pendiente', 'Realizado'))
+  estado TEXT NOT NULL DEFAULT 'Pendiente' CHECK (estado IN ('Pendiente', 'Realizado', 'Cancelado'))
 );
 
 CREATE TABLE IF NOT EXISTS compras_detalle (

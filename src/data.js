@@ -40,6 +40,7 @@ export async function getTabularReport(filters = {}) {
   const where = [];
   const add = (value, condition) => { params.push(value); where.push(condition.replace('?', `$${params.length}`)); };
   if (filters.color && filters.color !== 'Todos') add(filters.color, 'p.color = ?');
+  if (['Pendiente', 'Realizado', 'Cancelado'].includes(filters.estado)) add(filters.estado, 'co.estado = ?');
   if (filters.precio_desde !== '' && Number.isFinite(Number(filters.precio_desde))) add(Number(filters.precio_desde), 'cd.cantidad * cd.precio_unitario >= ?');
   if (filters.precio_hasta !== '' && Number.isFinite(Number(filters.precio_hasta))) add(Number(filters.precio_hasta), 'cd.cantidad * cd.precio_unitario <= ?');
   const { rows } = await query(`SELECT co.id_compra,co.fecha AS fecha_compra,cl.nombre AS comprador_nombre,
@@ -60,9 +61,12 @@ export async function getConsolidatedReport(filters = {}) {
   if (filters.id_cliente && Number.isInteger(Number(filters.id_cliente))) { params.push(Number(filters.id_cliente)); where.push(`co.id_cliente = $${params.length}`); }
   const [{ rows: report }, customers] = await Promise.all([
     query(`WITH ventas AS (
-        SELECT p.color,SUM(cd.cantidad)::integer AS total_productos_vendidos,
-          ROUND(AVG(cd.precio_unitario),2) AS promedio_precio,
-          ROUND(SUM(cd.cantidad*cd.precio_unitario),2) AS ingresos_totales
+        SELECT p.color,
+          COALESCE(SUM(cd.cantidad) FILTER (WHERE co.estado <> 'Cancelado'),0)::integer AS total_productos_vendidos,
+          COALESCE(ROUND(AVG(cd.precio_unitario) FILTER (WHERE co.estado <> 'Cancelado'),2),0) AS promedio_precio,
+          COALESCE(ROUND(SUM(cd.cantidad*cd.precio_unitario) FILTER (WHERE co.estado <> 'Cancelado'),2),0) AS ingresos_totales,
+          COALESCE(SUM(cd.cantidad) FILTER (WHERE co.estado = 'Cancelado'),0)::integer AS unidades_canceladas,
+          COALESCE(ROUND(SUM(cd.cantidad*cd.precio_unitario) FILTER (WHERE co.estado = 'Cancelado'),2),0) AS valor_cancelado
         FROM compras_detalle cd JOIN compras co USING(id_compra) JOIN productos p USING(id_producto)
         ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
         GROUP BY p.color
@@ -71,9 +75,10 @@ export async function getConsolidatedReport(filters = {}) {
         FROM productos GROUP BY color
       )
       SELECT ventas.color,ventas.total_productos_vendidos,ventas.promedio_precio,
-        ventas.ingresos_totales,COALESCE(inventario.productos_en_inventario,0) AS productos_en_inventario
+        ventas.ingresos_totales,ventas.unidades_canceladas,ventas.valor_cancelado,
+        COALESCE(inventario.productos_en_inventario,0) AS productos_en_inventario
       FROM ventas LEFT JOIN inventario USING(color)
-      ORDER BY ventas.total_productos_vendidos DESC`, params),
+      ORDER BY ventas.total_productos_vendidos DESC,ventas.unidades_canceladas DESC`, params),
     listCustomers(),
   ]);
   return { rows: report, customers };
