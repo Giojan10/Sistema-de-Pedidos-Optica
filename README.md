@@ -1,76 +1,47 @@
-# Sistema de Gestión de Pedidos - Óptica
+# Sistema de pedidos para óptica
 
-Aplicación web (Python + Flask + SQLite) construida a partir de:
-- Diagrama de casos de uso
-- Diagrama de actividades
-- Wireframes (Catálogo, Carrito, Informe Tabular, Informe Consolidado)
-- Diagrama entidad-relación
-
-Solo se implementaron las funcionalidades presentes en esos diagramas.
+Aplicación web de **Next.js (App Router) y PostgreSQL**. Las páginas consultan la base de datos en el servidor y los formularios usan Server Actions de Next.js. No requiere un backend Express ni una API JSON separada.
 
 ## Funcionalidades
 
-- **Consultar Catálogo**: búsqueda, filtro por precio y color, orden por precio/nombre.
-- **Gestionar Pedido**:
-  - Consultar Carrito
-  - Añadir Producto (reserva inventario)
-  - Quitar Producto (repone inventario)
-  - Generar Pedido / Confirmar Compra (guarda la compra y su detalle)
-  - Cancelar Pedido / Rechazar Compra (devuelve productos reservados)
-- **Generar Informe**:
-  - Informe Tabular (con filtros de precio y color, exportable a CSV)
-  - Informe Consolidado y Gráfico (agrupado por color, con filtro de fecha y cliente, exportable a CSV)
+- Identificación de clientes existentes y registro sencillo.
+- Catálogo con búsqueda, filtros por precio y color y ordenamiento.
+- Carrito que reserva inventario, permite ajustar cantidades, confirmar compras y cancelar pedidos.
+- Informes tabular y consolidado por color, con filtros, gráfico y exportación CSV.
+
+## Requisitos
+
+- Node.js 20.9 o posterior
+- PostgreSQL 13 o posterior
+
+## Configuración local
+
+1. Crea en PostgreSQL la base de datos `optica_pedidos`.
+2. Copia `.env.example` como `.env` y configura `DATABASE_URL` con el usuario y contraseña PostgreSQL. Cambia también `SESSION_SECRET`.
+3. Instala dependencias y ejecuta el servidor de desarrollo:
+
+```bash
+npm install
+npm run dev
+```
+
+Abre <http://localhost:3000>. En su primera conexión, la aplicación crea las tablas y añade información de ejemplo si están vacías.
+
+Para compilar y ejecutar en producción:
+
+```bash
+npm run build
+npm start
+```
 
 ## Estructura
 
-```
-optica_pedidos/
-├── app.py                  # Backend Flask (rutas + API)
-├── schema.sql               # Esquema SQL + datos de ejemplo
-├── requirements.txt
-├── static/
-│   ├── css/style.css
-│   └── js/                  # Lógica de cada vista
-└── templates/                # Vistas HTML (una por wireframe)
+```text
+app/                  Páginas Next.js, Server Actions y descargas CSV
+src/db.js             Conexión e inicialización de PostgreSQL
+src/data.js           Consultas de catálogo, carrito e informes
+database/schema.sql   Esquema PostgreSQL y datos de ejemplo
+public/               Archivos estáticos
 ```
 
-## Base de datos
-
-SQLite (`optica.db`), se crea automáticamente la primera vez que se ejecuta la
-aplicación, usando `schema.sql` (incluye datos de ejemplo: 3 clientes,
-6 productos y 3 compras históricas).
-
-Tablas (según el diagrama entidad-relación):
-`clientes`, `productos`, `compras`, `compras_detalle`, y `carrito_temp`
-(tabla auxiliar para manejar el carrito/reservas mientras el cliente arma su pedido).
-
-> Si prefieres usar MySQL/PostgreSQL en producción, solo hay que adaptar la
-> conexión en `app.py` (actualmente usa `sqlite3`) — el esquema SQL es
-> prácticamente el mismo.
-
-## Instalación y ejecución
-
-```bash
-cd optica_pedidos
-python3 -m venv venv
-source venv/bin/activate        # En Windows: venv\Scripts\activate
-pip install -r requirements.txt
-python3 app.py
-```
-
-Abrir en el navegador: **http://localhost:5000**
-
-Al entrar, el sistema pide identificarte como cliente (seleccionar uno
-existente o registrarte) — no hay login/contraseña porque no aparece en los
-diagramas, solo se necesita saber qué cliente está haciendo el pedido.
-
-## Notas de implementación
-
-- El "carrito" se maneja con reservas reales de inventario en la tabla
-  `carrito_temp`: al añadir un producto se descuenta de
-  `cantidad_disponible` y se suma a `cantidad_apartada`; al quitarlo se
-  revierte — tal como lo muestra el diagrama de actividades.
-- Al **confirmar** la compra se crea el registro en `compras` +
-  `compras_detalle` y se limpia la reserva. Al **cancelar**, se devuelve
-  todo el inventario reservado sin crear ninguna compra.
-- El gráfico del Informe Consolidado usa Chart.js (cargado por CDN).
+El cliente seleccionado se conserva en una cookie HttpOnly. Las operaciones del carrito que cambian el inventario se ejecutan dentro de transacciones PostgreSQL.

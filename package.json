@@ -1,0 +1,19 @@
+{
+  "name": "sistema-pedidos-optica",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Sistema de pedidos para óptica con Next.js y PostgreSQL",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "engines": { "node": ">=20.9" },
+  "dependencies": {
+    "next": "^16.1.0",
+    "pg": "^8.13.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  }
+}
