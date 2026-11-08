@@ -41,3 +41,11 @@ export async function requireStaff() {
   }
   return u;
 }
+
+export async function requireCliente() {
+  const u = await requireUser();
+  if (u.rol !== 'Cliente') {
+    redirect('/catalogo?error=Solo%20clientes%20pueden%20acceder%20a%20esta%20sección');
+  }
+  return u;
+}

@@ -1,5 +1,108 @@
 import { query } from './db.js';
 
+const ESTADOS_PEDIDO = ['Solicitándose', 'En edición', 'Realizado', 'Cancelado'];
+
+function dateFilter(v) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
+}
+
+/**
+ * Lista los pedidos de un usuario con filtros y paginación.
+ * Devuelve { pedidos, total, resumen }.
+ */
+export async function getMyOrders(userId, filters = {}, { limit = 20, offset = 0 } = {}) {
+  const params = [userId];
+  const where = ['co.id_usuario = $1'];
+
+  if (filters.estado && ESTADOS_PEDIDO.includes(filters.estado)) {
+    params.push(filters.estado);
+    where.push(`co.estado = $${params.length}`);
+  }
+  if (dateFilter(filters.fecha_inicio)) {
+    params.push(filters.fecha_inicio);
+    where.push(`co.fecha >= $${params.length}::date`);
+  }
+  if (dateFilter(filters.fecha_final)) {
+    params.push(filters.fecha_final);
+    where.push(`co.fecha <= $${params.length}::date`);
+  }
+  if (String(filters.buscar || '').trim()) {
+    params.push(`%${String(filters.buscar).trim()}%`);
+    where.push(`EXISTS (
+      SELECT 1 FROM compras_detalle cd2
+      JOIN productos p2 USING (id_producto)
+      WHERE cd2.id_compra = co.id_compra AND p2.nombre ILIKE $${params.length}
+    )`);
+  }
+
+  const whereSql = where.join(' AND ');
+
+  const [{ rows: pedidos }, { rows: conteo }, { rows: resumen }] = await Promise.all([
+    query(
+      `SELECT co.id_compra, co.fecha, co.hora, co.estado, co.actualizado_en,
+              COALESCE(SUM(cd.cantidad * cd.precio_unitario), 0) AS total,
+              COALESCE(SUM(cd.cantidad), 0)::int AS unidades
+       FROM compras co
+       LEFT JOIN compras_detalle cd USING (id_compra)
+       WHERE ${whereSql}
+       GROUP BY co.id_compra
+       ORDER BY co.fecha DESC, co.id_compra DESC
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
+    ),
+    query(`SELECT COUNT(*)::int AS n FROM compras co WHERE ${whereSql}`, params),
+    query(
+      `SELECT
+         COUNT(DISTINCT co.id_compra)::int AS total_pedidos,
+         COALESCE(SUM(cd.cantidad * cd.precio_unitario), 0) AS total_gastado,
+         COALESCE(SUM(cd.cantidad), 0)::int AS total_unidades
+       FROM compras co
+       LEFT JOIN compras_detalle cd USING (id_compra)
+       WHERE ${whereSql}`,
+      params
+    ),
+  ]);
+
+  return {
+    pedidos,
+    total: conteo[0].n,
+    resumen: resumen[0],
+    limit,
+    offset,
+  };
+}
+
+/**
+ * Devuelve las líneas de detalle de varios pedidos a la vez.
+ * Recibe un array de id_compra. Filtra por id_usuario para seguridad.
+ */
+export async function getOrderDetails(userId, orderIds) {
+  if (!orderIds.length) return new Map();
+
+  const params = [userId, ...orderIds];
+  const placeholders = orderIds.map((_, i) => `$${i + 2}`).join(',');
+
+  const { rows } = await query(
+    `SELECT cd.id_compra, cd.id_producto, p.nombre, p.descripcion,
+            p.color, p.imagen_url, cd.cantidad, cd.precio_unitario,
+            (cd.cantidad * cd.precio_unitario) AS subtotal
+     FROM compras_detalle cd
+     JOIN compras co USING (id_compra)
+     JOIN productos p USING (id_producto)
+     WHERE co.id_usuario = $1
+       AND cd.id_compra IN (${placeholders})
+     ORDER BY cd.id_compra, p.nombre`,
+    params
+  );
+
+  const map = new Map();
+  for (const row of rows) {
+    if (!map.has(row.id_compra)) map.set(row.id_compra, []);
+    map.get(row.id_compra).push(row);
+  }
+  return map;
+}
+
 /* ---------------- Usuarios ---------------- */
 
 export async function listUsuarios({ incluirInactivos = false } = {}) {

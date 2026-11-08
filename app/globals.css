@@ -43,6 +43,98 @@ img.producto-imagen {
   display: block;
   width: 100%;
 }
+.mis-pedidos-resumen {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.resumen-card {
+  background: #fff;
+  border: 1px solid #b9cee6;
+  border-radius: 6px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.resumen-label { font-size: .85rem; color: #5a7590; text-transform: uppercase; letter-spacing: .5px; }
+.resumen-valor { font-size: 1.6rem; font-weight: 700; color: #1c3a5e; }
+
+.mis-pedidos-filtros { margin-bottom: 20px; }
+
+.mis-pedidos-lista { display: flex; flex-direction: column; gap: 14px; }
+
+.pedido-card {
+  background: #fff;
+  border: 1px solid #b9cee6;
+  border-radius: 6px;
+  padding: 16px 20px;
+}
+.pedido-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.pedido-id { display: flex; flex-direction: column; gap: 2px; }
+.pedido-id strong { font-size: 1.05rem; color: #1c3a5e; }
+.pedido-fecha { font-size: .85rem; color: #5a7590; }
+.pedido-meta { display: flex; align-items: center; gap: 12px; }
+.pedido-total { font-size: 1.1rem; font-weight: 700; color: #2b5b96; }
+
+.pedido-resumen-linea { font-size: .88rem; color: #5a7590; margin-bottom: 8px; }
+
+.pedido-detalle summary {
+  cursor: pointer;
+  color: #2b5b96;
+  font-weight: 600;
+  text-decoration: underline;
+  font-size: .9rem;
+  margin-bottom: 8px;
+  display: inline-block;
+}
+.pedido-tabla { margin-top: 8px; }
+.pedido-tabla th, .pedido-tabla td { font-size: .85rem; }
+.pedido-tabla img.thumb-producto { width: 36px; height: 36px; }
+.pedido-tabla .thumb-producto.placeholder { width: 36px; height: 36px; }
+
+.chip {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: .8rem;
+  font-weight: 600;
+  background: #eef4fb;
+  border: 1px solid #b9cee6;
+  color: #2b5b96;
+}
+.chip.estado-solicitandose { background: #fbeae7; border-color: #e6b8ae; color: #963a29; }
+.chip.estado-en-edicion    { background: #fff4d6; border-color: #e6d3a1; color: #7a5a00; }
+.chip.estado-realizado     { background: #e7f4ea; border-color: #b5d7bd; color: #276238; }
+.chip.estado-cancelado     { background: #eee;    border-color: #ccc;    color: #666; }
+
+.paginacion {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  margin: 24px 0;
+  font-size: .9rem;
+  color: #5a7590;
+}
+.btn-plano {
+  background: transparent;
+  color: #2b5b96;
+  border: 1px solid #b9cee6;
+}
+.btn-plano:hover { background: #e3edf9; }
+
+@media (max-width: 700px) {
+  .mis-pedidos-resumen { grid-template-columns: 1fr; }
+}
 .producto-precio { color: #2b5b96; font-weight: 700; }
 .producto-nombre { font-weight: 600; margin: 4px 0 0; }
 .producto-desc { font-size: .85rem; color: #5a7590; margin: 2px 0 10px; }
