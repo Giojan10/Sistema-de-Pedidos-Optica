@@ -3,6 +3,7 @@ import Navbar from '../components/Navbar.jsx';
 import Notice from '../components/Notice.jsx';
 import { getConsolidatedReport } from '../../src/data.js';
 import { requireStaff } from '../../src/session.js';
+import SortHeader from '../components/SortHeader.jsx';
 
 function value(param) {
   return Array.isArray(param) ? param[0] : param || '';
@@ -10,16 +11,28 @@ function value(param) {
 
 export default async function ConsolidatedReportPage({ searchParams }) {
   const [user, params] = await Promise.all([requireStaff(), searchParams]);
+
   const filters = {
     fecha_inicio: value(params.fecha_inicio),
     fecha_final: value(params.fecha_final),
     id_usuario: value(params.id_usuario),
+    orden: value(params.orden) || '',
+    direccion: value(params.direccion) || 'asc',
   };
+
+  const baseQuery = {
+    fecha_inicio: filters.fecha_inicio,
+    fecha_final: filters.fecha_final,
+    id_usuario: filters.id_usuario,
+  };
+
   const { rows, usuarios } = await getConsolidatedReport(filters);
   const seleccionado = usuarios.find(u => String(u.id_usuario) === String(filters.id_usuario));
   const max = Math.max(1, ...rows.map(r => Number(r.total_productos_vendidos)));
+
+  // Para exportar solo importan los filtros, no el orden
   const exportQuery = new URLSearchParams(
-    Object.entries(filters).filter(([, v]) => v)
+    Object.entries(baseQuery).filter(([, v]) => v)
   );
 
   return (
@@ -30,6 +43,8 @@ export default async function ConsolidatedReportPage({ searchParams }) {
         <Notice searchParams={params} />
 
         <form className="filtros filtros-linea" method="get">
+          <input type="hidden" name="orden" value={filters.orden} />
+          <input type="hidden" name="direccion" value={filters.direccion} />
           <div>
             <label>Fecha de inicio:</label>
             <input type="date" name="fecha_inicio" defaultValue={filters.fecha_inicio} />
@@ -63,11 +78,11 @@ export default async function ConsolidatedReportPage({ searchParams }) {
               <table className="informe">
                 <thead>
                   <tr>
-                    <th>Color</th>
-                    <th>Unidades vendidas</th>
-                    <th>Precio promedio</th>
-                    <th>Ingresos totales</th>
-                    <th>Inventario disponible</th>
+                    <SortHeader column="color"      label="Color"                 current={filters} baseQuery={baseQuery} basePath="/informe-consolidado" />
+                    <SortHeader column="unidades"   label="Unidades vendidas"     current={filters} baseQuery={baseQuery} basePath="/informe-consolidado" />
+                    <SortHeader column="promedio"   label="Precio promedio"       current={filters} baseQuery={baseQuery} basePath="/informe-consolidado" />
+                    <SortHeader column="ingresos"   label="Ingresos totales"      current={filters} baseQuery={baseQuery} basePath="/informe-consolidado" />
+                    <SortHeader column="inventario" label="Inventario disponible" current={filters} baseQuery={baseQuery} basePath="/informe-consolidado" />
                   </tr>
                 </thead>
                 <tbody>

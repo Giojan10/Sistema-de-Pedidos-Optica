@@ -163,6 +163,35 @@ export async function listProducts(filters = {}, { incluirInactivos = false } = 
 
 /* ---------------- Pedido abierto (reemplaza carrito_temp) ---------------- */
 
+const ORDEN_TABULAR = {
+  id_compra: 'co.id_compra',
+  fecha: 'co.fecha',
+  comprador: 'u.nombre',
+  producto: 'p.nombre',
+  color: 'p.color',
+  cantidad: 'cd.cantidad',
+  precio: 'cd.cantidad * cd.precio_unitario',
+  estado: 'co.estado',
+};
+
+const ORDEN_CONSOLIDADO = {
+  color: 'v.color',
+  unidades: 'v.total_productos_vendidos',
+  promedio: 'v.promedio_precio',
+  ingresos: 'v.ingresos_totales',
+  inventario: 'v.productos_en_inventario',
+};
+
+/**
+ * Devuelve una cláusula ORDER BY segura (nunca interpola input directo).
+ */
+function buildOrderBy(whitelist, orden, direccion, fallback) {
+  const col = whitelist[orden];
+  if (!col) return `ORDER BY ${fallback}`;
+  const dir = String(direccion).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+  return `ORDER BY ${col} ${dir}`;
+}
+
 export async function getOpenOrder(userId) {
   const { rows: order } = await query(
     `SELECT id_compra, estado, fecha, hora
@@ -198,9 +227,12 @@ export async function getTabularReport(filters = {}) {
     params.push(value);
     where.push(condition.replace('?', `$${params.length}`));
   };
+
   if (filters.color && filters.color !== 'Todos') add(filters.color, 'p.color = ?');
   if (['Solicitándose', 'En edición', 'Realizado', 'Cancelado'].includes(filters.estado))
     add(filters.estado, 'co.estado = ?');
+  if (filters.id_usuario && Number.isInteger(Number(filters.id_usuario)))
+    add(Number(filters.id_usuario), 'co.id_usuario = ?');       // ← NUEVO
   if (filters.precio_desde !== '' && Number.isFinite(Number(filters.precio_desde)))
     add(Number(filters.precio_desde), 'cd.cantidad * cd.precio_unitario >= ?');
   if (filters.precio_hasta !== '' && Number.isFinite(Number(filters.precio_hasta)))
@@ -214,6 +246,13 @@ export async function getTabularReport(filters = {}) {
     where.push(`co.fecha <= $${params.length}::date`);
   }
 
+  const orderBy = buildOrderBy(
+    ORDEN_TABULAR,
+    filters.orden,
+    filters.direccion,
+    'co.fecha DESC, co.id_compra DESC'   // fallback
+  );
+
   const { rows } = await query(
     `SELECT co.id_compra, co.fecha AS fecha_compra,
             u.nombre AS comprador_nombre,
@@ -225,15 +264,25 @@ export async function getTabularReport(filters = {}) {
      JOIN usuarios u ON u.id_usuario = co.id_usuario
      JOIN productos p USING (id_producto)
      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-     ORDER BY co.fecha DESC, co.id_compra DESC`,
+     ${orderBy}`,
     params
+  );
+  return rows;
+}
+
+export async function listUsuariosParaFiltro() {
+  const { rows } = await query(
+    `SELECT id_usuario, nombre, usuario
+     FROM usuarios
+     WHERE activo = TRUE
+     ORDER BY nombre`
   );
   return rows;
 }
 
 export async function getConsolidatedReport(filters = {}) {
   const params = [];
-  const where = [`co.estado = 'Realizado'`]; // ← solo pedidos confirmados
+  const where = [`co.estado = 'Realizado'`];
 
   if (dateFilter(filters.fecha_inicio)) {
     params.push(filters.fecha_inicio);
@@ -247,6 +296,14 @@ export async function getConsolidatedReport(filters = {}) {
     params.push(Number(filters.id_usuario));
     where.push(`co.id_usuario = $${params.length}`);
   }
+
+  // Clave: el ORDER BY va DENTRO del CTE final, no en el SELECT externo
+  const ordenInterno = buildOrderBy(
+    ORDEN_CONSOLIDADO,
+    filters.orden,
+    filters.direccion,
+    'v.total_productos_vendidos DESC'
+  ).replace(/^ORDER BY /, ''); // quitar el prefijo, se usa dentro del SELECT
 
   const [{ rows: report }, usuarios] = await Promise.all([
     query(
@@ -268,7 +325,7 @@ export async function getConsolidatedReport(filters = {}) {
               v.ingresos_totales,
               COALESCE(i.productos_en_inventario,0) AS productos_en_inventario
        FROM ventas v LEFT JOIN inventario i USING (color)
-       ORDER BY v.total_productos_vendidos DESC`,
+       ORDER BY ${ordenInterno}`,
       params
     ),
     listUsuarios(),

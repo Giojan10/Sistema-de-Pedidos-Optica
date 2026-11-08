@@ -16,6 +16,8 @@ export async function GET(request) {
     fecha_inicio: params.get('fecha_inicio') || '',
     fecha_final: params.get('fecha_final') || '',
     id_usuario: params.get('id_usuario') || '',
+    orden: params.get('orden') || '',
+    direccion: params.get('direccion') || 'asc',
   });
   const header = ['Color', 'Total Productos Vendidos', 'Promedio Precio', 'Ingresos Totales', 'Productos en Inventario'];
   const values = rows.map(r => [

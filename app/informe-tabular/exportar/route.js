@@ -19,6 +19,9 @@ export async function GET(request) {
     estado: params.get('estado') || 'Todos',
     fecha_inicio: params.get('fecha_inicio') || '',
     fecha_final: params.get('fecha_final') || '',
+    id_usuario: params.get('id_usuario') || '',
+    orden: params.get('orden') || '',
+    direccion: params.get('direccion') || 'asc',
   });
   const header = ['Id Compra','Fecha Compra','Comprador','Producto','Color','Cantidad','Precio Compra','Estado'];
   const values = rows.map(r => [
