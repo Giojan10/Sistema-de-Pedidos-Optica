@@ -6,10 +6,6 @@ function dateFilter(v) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
 }
 
-/**
- * Lista los pedidos de un usuario con filtros y paginación.
- * Devuelve { pedidos, total, resumen }.
- */
 export async function getMyOrders(userId, filters = {}, { limit = 20, offset = 0 } = {}) {
   const params = [userId];
   const where = ['co.id_usuario = $1'];
@@ -194,10 +190,6 @@ export async function getOpenOrder(userId) {
 }
 
 /* ---------------- Informes ---------------- */
-
-function dateFilter(v) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
-}
 
 export async function getTabularReport(filters = {}) {
   const params = [];
