@@ -178,8 +178,8 @@ const ORDEN_CONSOLIDADO = {
   color: 'v.color',
   unidades: 'v.total_productos_vendidos',
   promedio: 'v.promedio_precio',
-  ingresos: 'v.ingresos_totales',
-  inventario: 'v.productos_en_inventario',
+  ingresos: 'i.ingresos_totales',
+  inventario: 'v.inventario',
 };
 
 /**
