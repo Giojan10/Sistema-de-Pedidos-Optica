@@ -2,7 +2,7 @@ import Link from 'next/link';
 import Navbar from '../components/Navbar.jsx';
 import Notice from '../components/Notice.jsx';
 import { getTabularReport } from '../../src/data.js';
-import { requireUser } from '../../src/session.js';
+import { requireStaff } from '../../src/session.js';
 
 function value(param) {
   return Array.isArray(param) ? param[0] : param || '';
@@ -16,7 +16,7 @@ function estadoClase(estado) {
 }
 
 export default async function TabularReportPage({ searchParams }) {
-  const [user, params] = await Promise.all([requireUser(), searchParams]);
+  const [user, params] = await Promise.all([requireStaff(), searchParams]);
   const filters = {
     precio_desde: value(params.precio_desde),
     precio_hasta: value(params.precio_hasta),

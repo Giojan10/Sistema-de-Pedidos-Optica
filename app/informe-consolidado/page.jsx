@@ -2,14 +2,14 @@ import Link from 'next/link';
 import Navbar from '../components/Navbar.jsx';
 import Notice from '../components/Notice.jsx';
 import { getConsolidatedReport } from '../../src/data.js';
-import { requireUser } from '../../src/session.js';
+import { requireStaff } from '../../src/session.js';
 
 function value(param) {
   return Array.isArray(param) ? param[0] : param || '';
 }
 
 export default async function ConsolidatedReportPage({ searchParams }) {
-  const [user, params] = await Promise.all([requireUser(), searchParams]);
+  const [user, params] = await Promise.all([requireStaff(), searchParams]);
   const filters = {
     fecha_inicio: value(params.fecha_inicio),
     fecha_final: value(params.fecha_final),

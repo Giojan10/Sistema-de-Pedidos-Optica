@@ -33,3 +33,11 @@ export async function requireAdmin() {
   if (u.rol !== 'Administrador') redirect('/catalogo?error=Acceso%20restringido');
   return u;
 }
+
+export async function requireStaff() {
+  const u = await requireUser();
+  if (u.rol === 'Cliente') {
+    redirect('/mis-pedidos?error=Acceso%20restringido%20a%20informes');
+  }
+  return u;
+}

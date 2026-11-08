@@ -66,7 +66,7 @@ export async function registerSelf(formData) {
   try {
     const { rows } = await query(
       `INSERT INTO usuarios (usuario, clave_hash, rol, nombre, email)
-       VALUES ($1,$2,'Operario',$3,$4) RETURNING id_usuario`,
+       VALUES ($1,$2,'Cliente',$3,$4) RETURNING id_usuario`,
       [usuario, hash, nombre, email]
     );
     id = rows[0].id_usuario;
@@ -74,7 +74,7 @@ export async function registerSelf(formData) {
     message('/registro', 'error', 'Ese usuario ya existe.');
   }
 
-  const token = jwt.sign({ id_usuario: id, rol: 'Operario' }, SECRET, { expiresIn: '8h' });
+  const token = jwt.sign({ id_usuario: id, rol: 'Cliente' }, SECRET, { expiresIn: '8h' });
   const store = await cookies();
   store.set('sesion', token, {
     httpOnly: true,

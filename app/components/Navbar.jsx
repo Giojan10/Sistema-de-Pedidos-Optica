@@ -8,8 +8,16 @@ export default function Navbar({ user, active }) {
       <nav>
         <Link className={active === 'catalogo' ? 'active' : ''} href="/catalogo">Catálogo</Link>
         <Link className={active === 'pedido' ? 'active' : ''} href="/pedido">Pedido</Link>
-        <Link className={active === 'tabular' ? 'active' : ''} href="/informe-tabular">Informe tabular</Link>
-        <Link className={active === 'consolidado' ? 'active' : ''} href="/informe-consolidado">Informe consolidado</Link>
+        
+        {user.rol === 'Cliente' ? (
+          <Link className={active === 'mis-pedidos' ? 'active' : ''} href="/mis-pedidos">Mis Pedidos</Link>
+        ) : (
+          <>
+            <Link className={active === 'tabular' ? 'active' : ''} href="/informe-tabular">Informe tabular</Link>
+            <Link className={active === 'consolidado' ? 'active' : ''} href="/informe-consolidado">Informe consolidado</Link>
+          </>
+        )}
+
         {user.rol === 'Administrador' && (
           <Link className={active === 'maestro' ? 'active' : ''} href="/maestro">Maestro</Link>
         )}
