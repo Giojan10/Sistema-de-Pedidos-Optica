@@ -503,6 +503,34 @@ img.producto-imagen {
    11. VISTA: MAESTRO (Admin)
    ========================================================================== */
 
+/* Barra superior de tablas con contador + selector de tamaño */
+.tabla-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.tabla-toolbar h3,
+.tabla-toolbar .subtitulo { margin: 0; }
+
+.limit-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .85rem;
+  color: #5a7590;
+}
+.limit-selector label { margin: 0; font-weight: normal; }
+.limit-selector select {
+  padding: 4px 8px;
+  border: 1px solid #a9c4e0;
+  border-radius: 4px;
+  background: #fff;
+  color: #1c3a5e;
+}
+
 .panel { 
   background: #eef4fb; 
   border: 1px solid #b9cee6; 

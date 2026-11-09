@@ -38,7 +38,7 @@ export async function GET(request) {
     id_usuario: params.get('id_usuario') || '',
     orden: params.get('orden') || '',
     direccion: params.get('direccion') || 'asc',
-  });
+  }, { limit: 100_000, offset: 0 });
 
   // 3. Encabezado del CSV.
   const header = [

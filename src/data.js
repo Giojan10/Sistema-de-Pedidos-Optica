@@ -128,20 +128,6 @@ export async function getOrderDetails(userId, orderIds) {
    USUARIOS
    ============================================================ */
 
-/**
- * Lista usuarios. Por defecto solo los activos.
- * Pasar `{ incluirInactivos: true }` para ver todos (vista del maestro).
- */
-export async function listUsuarios({ incluirInactivos = false } = {}) {
-  const { rows } = await query(
-    `SELECT id_usuario, usuario, rol, nombre, email, activo, creado_en
-     FROM usuarios
-     ${incluirInactivos ? '' : 'WHERE activo'}
-     ORDER BY activo DESC, nombre`
-  );
-  return rows;
-}
-
 /** Devuelve un usuario por id o null. */
 export async function getUser(id) {
   const { rows } = await query(
@@ -156,19 +142,11 @@ export async function getUser(id) {
    PRODUCTOS
    ============================================================ */
 
-/** Lista todos los productos (activos e inactivos) para el maestro. */
-export async function listProductsAdmin() {
-  const { rows } = await query(
-    `SELECT * FROM productos ORDER BY activo DESC, nombre`
-  );
-  return rows;
-}
-
 /**
  * Lista productos para el catálogo público.
  * Por defecto solo activos (`activo = TRUE`).
  */
-export async function listProducts(filters = {}, { incluirInactivos = false } = {}) {
+export async function listProducts(filters = {}, { limit = 12, offset = 0, incluirInactivos = false } = {}) {
   const params = [];
   const where = [];
   const add = (value, condition) => {
@@ -186,18 +164,69 @@ export async function listProducts(filters = {}, { incluirInactivos = false } = 
   if (filters.precio_hasta !== '' && Number.isFinite(Number(filters.precio_hasta)))
     add(Number(filters.precio_hasta), 'precio_unitario <= ?');
 
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
   const ordering = {
     precio_asc: 'precio_unitario ASC',
     precio_desc: 'precio_unitario DESC',
     nombre_asc: 'nombre ASC',
   };
-  const { rows } = await query(
-    `SELECT * FROM productos
-     ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-     ORDER BY ${ordering[filters.orden] || ordering.precio_desc}`,
-    params
-  );
-  return rows;
+  const orderBy = ordering[filters.orden] || ordering.precio_desc;
+
+  // Una query para la página + otra para el total
+  const [{ rows }, { rows: conteo }] = await Promise.all([
+    query(
+      `SELECT * FROM productos
+       ${whereSql}
+       ORDER BY ${orderBy}
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
+    ),
+    query(`SELECT COUNT(*)::int AS n FROM productos ${whereSql}`, params),
+  ]);
+
+  return { rows, total: conteo[0].n, limit, offset };
+}
+
+/**
+ * Lista usuarios con paginación (para la tabla del maestro).
+ */
+export async function listUsuariosPaginado({ incluirInactivos = true } = {}, { limit = 10, offset = 0 } = {}) {
+  const params = [];
+  const where = [];
+  if (!incluirInactivos) where.push('activo = TRUE');
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  const [{ rows }, { rows: conteo }] = await Promise.all([
+    query(
+      `SELECT id_usuario, usuario, rol, nombre, email, activo, creado_en
+       FROM usuarios
+       ${whereSql}
+       ORDER BY activo DESC, nombre
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    ),
+    query(`SELECT COUNT(*)::int AS n FROM usuarios ${whereSql}`, params),
+  ]);
+
+  return { rows, total: conteo[0].n, limit, offset };
+}
+
+/**
+ * Lista productos con paginación (para la tabla del maestro, incluye inactivos).
+ */
+export async function listProductsAdminPaginado({ limit = 10, offset = 0 } = {}) {
+  const [{ rows }, { rows: conteo }] = await Promise.all([
+    query(
+      `SELECT * FROM productos
+       ORDER BY activo DESC, nombre
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    ),
+    query('SELECT COUNT(*)::int AS n FROM productos'),
+  ]);
+
+  return { rows, total: conteo[0].n, limit, offset };
 }
 
 /* ============================================================
@@ -283,15 +312,44 @@ export async function getOpenOrder(userId) {
 }
 
 /* ============================================================
+   PÁGINACION Y LÍMITES
+   ============================================================ */
+
+/**
+ * Lee `limit` y `offset` de los searchParams.
+ * - `limit` está restringido a valores de la whitelist (seguridad).
+ * - `offset` se calcula a partir de `pagina` y `limit`.
+ */
+function readPagination(params, allowedLimits, defaultLimit) {
+  const rawLimit = Number(params.limit);
+  const limit = allowedLimits.includes(rawLimit) ? rawLimit : defaultLimit;
+  const page = Math.max(1, Number(params.pagina) || 1);
+  const offset = (page - 1) * limit;
+  return { limit, offset, page };
+}
+
+/**
+ * Cuenta cuántas páginas hay dado un total y un tamaño de página.
+ */
+function totalPages(total, limit) {
+  return Math.max(1, Math.ceil(total / limit));
+}
+
+export const LIMITES_TABULAR = [10, 25, 50, 100];
+export const LIMITES_CATALOGO = [8, 12, 24, 48];
+export const LIMITES_MAESTRO = [10, 25, 50];
+
+/* ============================================================
    INFORMES
    ============================================================ */
+
 
 /**
  * Informe tabular: cada línea de compra (producto × pedido).
  * Soporta filtros por color, estado, usuario, precio, fecha
  * y ordenamiento por columna.
  */
-export async function getTabularReport(filters = {}) {
+export async function getTabularReport(filters = {}, { limit = 50, offset = 0 } = {}) {
   const params = [];
   const where = [];
   const add = (value, condition) => {
@@ -317,6 +375,7 @@ export async function getTabularReport(filters = {}) {
     where.push(`co.fecha <= $${params.length}::date`);
   }
 
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const orderBy = buildOrderBy(
     ORDEN_TABULAR,
     filters.orden,
@@ -324,21 +383,34 @@ export async function getTabularReport(filters = {}) {
     'co.fecha DESC, co.id_compra DESC'
   );
 
-  const { rows } = await query(
-    `SELECT co.id_compra, co.fecha AS fecha_compra,
-            u.nombre AS comprador_nombre,
-            p.nombre AS producto, p.color, cd.cantidad,
-            cd.cantidad * cd.precio_unitario AS precio_compra,
-            co.estado AS estado_compra
-     FROM compras_detalle cd
-     JOIN compras co USING (id_compra)
-     JOIN usuarios u ON u.id_usuario = co.id_usuario
-     JOIN productos p USING (id_producto)
-     ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-     ${orderBy}`,
-    params
-  );
-  return rows;
+  const [{ rows }, { rows: conteo }] = await Promise.all([
+    query(
+      `SELECT co.id_compra, co.fecha AS fecha_compra,
+              u.nombre AS comprador_nombre,
+              p.nombre AS producto, p.color, cd.cantidad,
+              cd.cantidad * cd.precio_unitario AS precio_compra,
+              co.estado AS estado_compra
+       FROM compras_detalle cd
+       JOIN compras co USING (id_compra)
+       JOIN usuarios u ON u.id_usuario = co.id_usuario
+       JOIN productos p USING (id_producto)
+       ${whereSql}
+       ${orderBy}
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
+    ),
+    query(
+      `SELECT COUNT(*)::int AS n
+       FROM compras_detalle cd
+       JOIN compras co USING (id_compra)
+       JOIN usuarios u ON u.id_usuario = co.id_usuario
+       JOIN productos p USING (id_producto)
+       ${whereSql}`,
+      params
+    ),
+  ]);
+
+  return { rows, total: conteo[0].n, limit, offset };
 }
 
 /** Lista mínima de usuarios activos para poblar el <select> de filtros. */

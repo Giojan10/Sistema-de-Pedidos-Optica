@@ -1,5 +1,10 @@
+import Link from 'next/link';
 import { requireAdmin } from '../../src/session.js';
-import { listUsuarios, listProductsAdmin } from '../../src/data.js';
+import {
+  listUsuariosPaginado,
+  listProductsAdminPaginado,
+  LIMITES_MAESTRO,
+} from '../../src/data.js';
 import {
   createUser, createProduct,
   deactivateUser, reactivateUser,
@@ -10,13 +15,49 @@ import Notice from '../components/Notice.jsx';
 
 const COLORES = ['Verde', 'Rojo', 'Azul', 'Metálico', 'Negro'];
 
+function value(param) {
+  return Array.isArray(param) ? param[0] : param || '';
+}
+
 export default async function MaestroPage({ searchParams }) {
-  const [user, params, usuarios, productos] = await Promise.all([
-    requireAdmin(),
-    searchParams,
-    listUsuarios({ incluirInactivos: true }),
-    listProductsAdmin(),
+  const [user, params] = await Promise.all([requireAdmin(), searchParams]);
+
+  // --- Paginación de usuarios ---
+  const limitU = LIMITES_MAESTRO.includes(Number(params.limitU))
+    ? Number(params.limitU)
+    : 10;
+  const pageU = Math.max(1, Number(value(params.paginaUsuarios)) || 1);
+  const offsetU = (pageU - 1) * limitU;
+
+  // --- Paginación de productos ---
+  const limitP = LIMITES_MAESTRO.includes(Number(params.limitP))
+    ? Number(params.limitP)
+    : 10;
+  const pageP = Math.max(1, Number(value(params.paginaProductos)) || 1);
+  const offsetP = (pageP - 1) * limitP;
+
+  const [{ rows: usuarios, total: totalU }, { rows: productos, total: totalP }] = await Promise.all([
+    listUsuariosPaginado({ incluirInactivos: true }, { limit: limitU, offset: offsetU }),
+    listProductsAdminPaginado({ limit: limitP, offset: offsetP }),
   ]);
+
+  const totalPaginasU = Math.max(1, Math.ceil(totalU / limitU));
+  const totalPaginasP = Math.max(1, Math.ceil(totalP / limitP));
+
+  // Helpers para construir URLs conservando la paginación de la otra tabla
+  const urlUsuarios = (extra = {}) => {
+    const p = {
+      ...(limitU !== 10 && { limitU }),
+      ...(pageU > 1 && { paginaUsuarios: pageU }),
+      ...(limitP !== 10 && { limitP }),
+      ...(pageP > 1 && { paginaProductos: pageP }),
+      ...extra,
+    };
+    const s = new URLSearchParams(p).toString();
+    return s ? `?${s}` : '';
+  };
+
+  const urlProductos = (extra = {}) => urlUsuarios(extra); // misma lógica
 
   return (
     <>
@@ -68,9 +109,25 @@ export default async function MaestroPage({ searchParams }) {
           </section>
         </div>
 
-        {/* ---------- Usuarios ---------- */}
+        {/* ---------- Tabla de usuarios ---------- */}
         <section style={{ marginTop: 32 }}>
-          <h3>Usuarios registrados</h3>
+          <div className="tabla-toolbar">
+            <h3>Usuarios registrados ({totalU})</h3>
+            <form method="get" className="limit-selector">
+              {pageP > 1 && <input type="hidden" name="paginaProductos" value={pageP} />}
+              {limitP !== 10 && <input type="hidden" name="limitP" value={limitP} />}
+              <label htmlFor="limit-u">Por página:</label>
+              <select
+                id="limit-u"
+                name="limitU"
+                defaultValue={limitU}
+                onChange="this.form.submit()"
+              >
+                {LIMITES_MAESTRO.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </form>
+          </div>
+
           <div className="table-wrap">
             <table className="informe">
               <thead>
@@ -105,11 +162,45 @@ export default async function MaestroPage({ searchParams }) {
               </tbody>
             </table>
           </div>
+
+          {totalPaginasU > 1 && (
+            <nav className="paginacion">
+              {pageU > 1 && (
+                <Link className="btn btn-plano" href={`/maestro${urlUsuarios({ paginaUsuarios: 1 })}`}>« Primera</Link>
+              )}
+              {pageU > 1 && (
+                <Link className="btn btn-plano" href={`/maestro${urlUsuarios({ paginaUsuarios: pageU - 1 })}`}>← Anterior</Link>
+              )}
+              <span>Página {pageU} de {totalPaginasU}</span>
+              {pageU < totalPaginasU && (
+                <Link className="btn btn-plano" href={`/maestro${urlUsuarios({ paginaUsuarios: pageU + 1 })}`}>Siguiente →</Link>
+              )}
+              {pageU < totalPaginasU && (
+                <Link className="btn btn-plano" href={`/maestro${urlUsuarios({ paginaUsuarios: totalPaginasU })}`}>Última »</Link>
+              )}
+            </nav>
+          )}
         </section>
 
-        {/* ---------- Productos ---------- */}
+        {/* ---------- Tabla de productos ---------- */}
         <section style={{ marginTop: 32 }}>
-          <h3>Productos</h3>
+          <div className="tabla-toolbar">
+            <h3>Productos ({totalP})</h3>
+            <form method="get" className="limit-selector">
+              {pageU > 1 && <input type="hidden" name="paginaUsuarios" value={pageU} />}
+              {limitU !== 10 && <input type="hidden" name="limitU" value={limitU} />}
+              <label htmlFor="limit-p">Por página:</label>
+              <select
+                id="limit-p"
+                name="limitP"
+                defaultValue={limitP}
+                onChange="this.form.submit()"
+              >
+                {LIMITES_MAESTRO.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </form>
+          </div>
+
           <div className="table-wrap">
             <table className="informe">
               <thead>
@@ -136,65 +227,39 @@ export default async function MaestroPage({ searchParams }) {
                     <td className="acciones-producto">
                       <details>
                         <summary className="link-button">Editar</summary>
-                        <form
-                          action={updateProduct}
-                          encType="multipart/form-data"
-                          className="form-editar-producto"
-                        >
+                        <form action={updateProduct} encType="multipart/form-data" className="form-editar-producto">
                           <input type="hidden" name="id_producto" value={p.id_producto} />
-
                           <label>Nombre</label>
                           <input name="nombre" defaultValue={p.nombre} required />
-
                           <label>Descripción</label>
                           <input name="descripcion" defaultValue={p.descripcion || ''} />
-
                           <label>Color</label>
                           <select name="color" defaultValue={p.color}>
                             {COLORES.map(c => <option key={c}>{c}</option>)}
                           </select>
-
                           <label>Precio unitario</label>
-                          <input
-                            name="precio_unitario"
-                            type="number" step="0.01" min="0"
-                            defaultValue={Number(p.precio_unitario).toFixed(2)}
-                            required
-                          />
-
+                          <input name="precio_unitario" type="number" step="0.01" min="0"
+                            defaultValue={Number(p.precio_unitario).toFixed(2)} required />
                           <label>Cantidad disponible</label>
-                          <input
-                            name="cantidad_disponible"
-                            type="number" min="0"
-                            defaultValue={p.cantidad_disponible}
-                          />
-
+                          <input name="cantidad_disponible" type="number" min="0"
+                            defaultValue={p.cantidad_disponible} />
                           <label>URL de imagen (actual: {p.imagen_url ? 'sí' : 'no'})</label>
-                          <input
-                            name="imagen_url"
-                            type="url"
-                            placeholder="https://..."
-                            defaultValue={p.imagen_url && !p.imagen_url.includes('supabase') ? p.imagen_url : ''}
-                          />
-
+                          <input name="imagen_url" type="url" placeholder="https://..."
+                            defaultValue={p.imagen_url && !p.imagen_url.includes('supabase') ? p.imagen_url : ''} />
                           <label>…o reemplazar con archivo</label>
                           <input name="imagen" type="file" accept="image/*" />
-
                           {p.imagen_url && (
                             <label className="check-inline">
                               <input type="checkbox" name="quitar_imagen" /> Quitar imagen
                             </label>
                           )}
-
                           <button className="btn btn-block">Guardar cambios</button>
                         </form>
                       </details>
 
                       <form action={toggleProductActive} className="inline">
                         <input type="hidden" name="id_producto" value={p.id_producto} />
-                        <button className="link-button">
-                          {p.activo ? 'Desactivar' : 'Activar'}
-                        </button>
+                        <button className="link-button">{p.activo ? 'Desactivar' : 'Activar'}</button>
                       </form>
 
                       <form action={deleteProduct} className="inline">
@@ -207,6 +272,24 @@ export default async function MaestroPage({ searchParams }) {
               </tbody>
             </table>
           </div>
+
+          {totalPaginasP > 1 && (
+            <nav className="paginacion">
+              {pageP > 1 && (
+                <Link className="btn btn-plano" href={`/maestro${urlProductos({ paginaProductos: 1 })}`}>« Primera</Link>
+              )}
+              {pageP > 1 && (
+                <Link className="btn btn-plano" href={`/maestro${urlProductos({ paginaProductos: pageP - 1 })}`}>← Anterior</Link>
+              )}
+              <span>Página {pageP} de {totalPaginasP}</span>
+              {pageP < totalPaginasP && (
+                <Link className="btn btn-plano" href={`/maestro${urlProductos({ paginaProductos: pageP + 1 })}`}>Siguiente →</Link>
+              )}
+              {pageP < totalPaginasP && (
+                <Link className="btn btn-plano" href={`/maestro${urlProductos({ paginaProductos: totalPaginasP })}`}>Última »</Link>
+              )}
+            </nav>
+          )}
         </section>
       </main>
     </>

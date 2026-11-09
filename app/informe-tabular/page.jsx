@@ -2,7 +2,11 @@ import Link from 'next/link';
 import Navbar from '../components/Navbar.jsx';
 import Notice from '../components/Notice.jsx';
 import SortHeader from '../components/SortHeader.jsx';
-import { getTabularReport, listUsuariosParaFiltro } from '../../src/data.js';
+import {
+  getTabularReport,
+  listUsuariosParaFiltro,
+  LIMITES_TABULAR,
+} from '../../src/data.js';
 import { requireUser } from '../../src/session.js';
 
 function value(param) {
@@ -31,12 +35,20 @@ export default async function TabularReportPage({ searchParams }) {
     direccion: value(params.direccion) || 'asc',
   };
 
-  const [rows, usuarios] = await Promise.all([
-    getTabularReport(filters),
+  // Paginación
+  const limit = LIMITES_TABULAR.includes(Number(params.limit))
+    ? Number(params.limit)
+    : 50;
+  const page = Math.max(1, Number(value(params.pagina)) || 1);
+  const offset = (page - 1) * limit;
+
+  const [{ rows, total }, usuarios] = await Promise.all([
+    getTabularReport(filters, { limit, offset }),
     listUsuariosParaFiltro(),
   ]);
 
-  // Base de filtros para reconstruir URLs sin perder estado
+  const totalPaginas = Math.max(1, Math.ceil(total / limit));
+
   const baseQuery = {
     precio_desde: filters.precio_desde,
     precio_hasta: filters.precio_hasta,
@@ -47,9 +59,25 @@ export default async function TabularReportPage({ searchParams }) {
     id_usuario: filters.id_usuario,
   };
 
+  // Para exportar: sin paginar
   const exportQuery = new URLSearchParams(
     Object.entries(baseQuery).filter(([, v]) => v && v !== 'Todos')
   );
+
+  // Reconstruye URL conservando filtros, orden y limit
+  const queryParams = (extra = {}) => {
+    const base = {
+      ...Object.fromEntries(
+        Object.entries(baseQuery).filter(([, v]) => v && v !== 'Todos')
+      ),
+      ...(filters.orden && { orden: filters.orden }),
+      ...(filters.direccion && { direccion: filters.direccion }),
+      ...(limit !== 50 && { limit }),   // solo incluye si es distinto al default
+      ...extra,
+    };
+    const s = new URLSearchParams(base).toString();
+    return s ? `?${s}` : '';
+  };
 
   return (
     <>
@@ -60,50 +88,105 @@ export default async function TabularReportPage({ searchParams }) {
         <Notice searchParams={params} />
 
         <div className="grid-principal informe-layout">
-          <section className="table-wrap">
-            <table className="informe">
-              <thead>
-                <tr>
-                  <SortHeader column="id_compra" label="Id compra" current={filters} baseQuery={baseQuery} basePath="/informe-tabular" />
-                  <SortHeader column="fecha"     label="Fecha"     current={filters} baseQuery={baseQuery} basePath="/informe-tabular" />
-                  <SortHeader column="comprador" label="Comprador" current={filters} baseQuery={baseQuery} basePath="/informe-tabular" />
-                  <SortHeader column="producto"  label="Producto"  current={filters} baseQuery={baseQuery} basePath="/informe-tabular" />
-                  <SortHeader column="color"     label="Color"     current={filters} baseQuery={baseQuery} basePath="/informe-tabular" />
-                  <SortHeader column="cantidad"  label="Cantidad"  current={filters} baseQuery={baseQuery} basePath="/informe-tabular" />
-                  <SortHeader column="precio"    label="Precio compra" current={filters} baseQuery={baseQuery} basePath="/informe-tabular" />
-                  <SortHeader column="estado"    label="Estado"    current={filters} baseQuery={baseQuery} basePath="/informe-tabular" />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, i) => (
-                  <tr key={`${row.id_compra}-${row.producto}-${i}`}>
-                    <td>{row.id_compra}</td>
-                    <td>{String(row.fecha_compra).slice(0, 10)}</td>
-                    <td>{row.comprador_nombre}</td>
-                    <td>{row.producto}</td>
-                    <td>{row.color}</td>
-                    <td>{row.cantidad}</td>
-                    <td>${Number(row.precio_compra).toFixed(2)}</td>
-                    <td className={estadoClase(row.estado_compra)}>{row.estado_compra}</td>
+          <section>
+            <div className="tabla-toolbar">
+              <p className="subtitulo">
+                {total} línea(s) encontrada(s)
+              </p>
+              <form method="get" className="limit-selector">
+                {/* Conservar filtros y orden al cambiar el tamaño */}
+                {Object.entries(baseQuery).map(([k, v]) =>
+                  v && v !== 'Todos'
+                    ? <input key={k} type="hidden" name={k} value={v} />
+                    : null
+                )}
+                {filters.orden && <input type="hidden" name="orden" value={filters.orden} />}
+                {filters.direccion && <input type="hidden" name="direccion" value={filters.direccion} />}
+                <label htmlFor="limit">Filas por página:</label>
+                <select
+                  id="limit"
+                  name="limit"
+                  defaultValue={limit}
+                  onChange="this.form.submit()"
+                >
+                  {LIMITES_TABULAR.map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+                <noscript>
+                  <button className="btn btn-plano">Aplicar</button>
+                </noscript>
+              </form>
+            </div>
+
+            <div className="table-wrap">
+              <table className="informe">
+                <thead>
+                  <tr>
+                    <SortHeader column="id_compra" label="Id compra" current={filters} baseQuery={baseQuery} basePath="/informe-tabular" />
+                    <SortHeader column="fecha"     label="Fecha"     current={filters} baseQuery={baseQuery} basePath="/informe-tabular" />
+                    <SortHeader column="comprador" label="Comprador" current={filters} baseQuery={baseQuery} basePath="/informe-tabular" />
+                    <SortHeader column="producto"  label="Producto"  current={filters} baseQuery={baseQuery} basePath="/informe-tabular" />
+                    <SortHeader column="color"     label="Color"     current={filters} baseQuery={baseQuery} basePath="/informe-tabular" />
+                    <SortHeader column="cantidad"  label="Cantidad"  current={filters} baseQuery={baseQuery} basePath="/informe-tabular" />
+                    <SortHeader column="precio"    label="Precio compra" current={filters} baseQuery={baseQuery} basePath="/informe-tabular" />
+                    <SortHeader column="estado"    label="Estado"    current={filters} baseQuery={baseQuery} basePath="/informe-tabular" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {rows.map((row, i) => (
+                    <tr key={`${row.id_compra}-${row.producto}-${i}`}>
+                      <td>{row.id_compra}</td>
+                      <td>{String(row.fecha_compra).slice(0, 10)}</td>
+                      <td>{row.comprador_nombre}</td>
+                      <td>{row.producto}</td>
+                      <td>{row.color}</td>
+                      <td>{row.cantidad}</td>
+                      <td>${Number(row.precio_compra).toFixed(2)}</td>
+                      <td className={estadoClase(row.estado_compra)}>{row.estado_compra}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
             {!rows.length && <p className="mensaje-vacio">No hay compras que coincidan con el filtro.</p>}
+
+            {totalPaginas > 1 && (
+              <nav className="paginacion">
+                {page > 1 && (
+                  <Link className="btn btn-plano" href={`/informe-tabular${queryParams({ pagina: 1 })}`}>
+                    « Primera
+                  </Link>
+                )}
+                {page > 1 && (
+                  <Link className="btn btn-plano" href={`/informe-tabular${queryParams({ pagina: page - 1 })}`}>
+                    ← Anterior
+                  </Link>
+                )}
+                <span>Página {page} de {totalPaginas}</span>
+                {page < totalPaginas && (
+                  <Link className="btn btn-plano" href={`/informe-tabular${queryParams({ pagina: page + 1 })}`}>
+                    Siguiente →
+                  </Link>
+                )}
+                {page < totalPaginas && (
+                  <Link className="btn btn-plano" href={`/informe-tabular${queryParams({ pagina: totalPaginas })}`}>
+                    Última »
+                  </Link>
+                )}
+              </nav>
+            )}
           </section>
 
           <form className="filtros" method="get">
-            {/* Preservar el orden actual al aplicar filtros */}
             <input type="hidden" name="orden" value={filters.orden} />
             <input type="hidden" name="direccion" value={filters.direccion} />
+            <input type="hidden" name="limit" value={limit} />
 
             <label htmlFor="f-usuario">Usuario:</label>
             <select id="f-usuario" name="id_usuario" defaultValue={filters.id_usuario}>
               <option value="">Todos</option>
               {usuarios.map(u => (
-                <option key={u.id_usuario} value={u.id_usuario}>
-                  {u.nombre} ({u.usuario})
-                </option>
+                <option key={u.id_usuario} value={u.id_usuario}>{u.nombre} ({u.usuario})</option>
               ))}
             </select>
 
