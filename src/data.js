@@ -189,6 +189,22 @@ export async function listProducts(filters = {}, { limit = 12, offset = 0, inclu
 }
 
 /**
+ * Lista usuarios activos (sin paginar).
+ * Se usa para el `<select>` de filtros de informes y para
+ * obtener la lista completa cuando el volumen es pequeño.
+ * Si se necesita paginar (ej. maestro), usar `listUsuariosPaginado`.
+ */
+export async function listUsuarios({ incluirInactivos = false } = {}) {
+  const { rows } = await query(
+    `SELECT id_usuario, usuario, rol, nombre, email, activo, creado_en
+     FROM usuarios
+     ${incluirInactivos ? '' : 'WHERE activo'}
+     ORDER BY activo DESC, nombre`
+  );
+  return rows;
+}
+
+/**
  * Lista usuarios con paginación (para la tabla del maestro).
  */
 export async function listUsuariosPaginado({ incluirInactivos = true } = {}, { limit = 10, offset = 0 } = {}) {
