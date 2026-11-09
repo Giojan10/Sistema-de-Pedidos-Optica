@@ -12,6 +12,7 @@ import {
 } from '../actions.js';
 import Navbar from '../components/Navbar.jsx';
 import Notice from '../components/Notice.jsx';
+import LimitSelector from '../components/LimitSelector.jsx';
 
 const COLORES = ['Verde', 'Rojo', 'Azul', 'Metálico', 'Negro'];
 
@@ -44,7 +45,7 @@ export default async function MaestroPage({ searchParams }) {
   const totalPaginasU = Math.max(1, Math.ceil(totalU / limitU));
   const totalPaginasP = Math.max(1, Math.ceil(totalP / limitP));
 
-  // Helpers para construir URLs conservando la paginación de la otra tabla
+  // Helpers para URLs que conservan la paginación de la OTRA tabla
   const urlUsuarios = (extra = {}) => {
     const p = {
       ...(limitU !== 10 && { limitU }),
@@ -57,7 +58,7 @@ export default async function MaestroPage({ searchParams }) {
     return s ? `?${s}` : '';
   };
 
-  const urlProductos = (extra = {}) => urlUsuarios(extra); // misma lógica
+  const urlProductos = (extra = {}) => urlUsuarios(extra);
 
   return (
     <>
@@ -113,19 +114,13 @@ export default async function MaestroPage({ searchParams }) {
         <section style={{ marginTop: 32 }}>
           <div className="tabla-toolbar">
             <h3>Usuarios registrados ({totalU})</h3>
-            <form method="get" className="limit-selector">
-              {pageP > 1 && <input type="hidden" name="paginaProductos" value={pageP} />}
-              {limitP !== 10 && <input type="hidden" name="limitP" value={limitP} />}
-              <label htmlFor="limit-u">Por página:</label>
-              <select
-                id="limit-u"
-                name="limitU"
-                defaultValue={limitU}
-                onChange="this.form.submit()"
-              >
-                {LIMITES_MAESTRO.map(n => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </form>
+            <LimitSelector
+              id="limit-u"
+              param="limitU"
+              pageParam="paginaUsuarios"
+              options={LIMITES_MAESTRO}
+              defaultValue={limitU}
+            />
           </div>
 
           <div className="table-wrap">
@@ -186,19 +181,13 @@ export default async function MaestroPage({ searchParams }) {
         <section style={{ marginTop: 32 }}>
           <div className="tabla-toolbar">
             <h3>Productos ({totalP})</h3>
-            <form method="get" className="limit-selector">
-              {pageU > 1 && <input type="hidden" name="paginaUsuarios" value={pageU} />}
-              {limitU !== 10 && <input type="hidden" name="limitU" value={limitU} />}
-              <label htmlFor="limit-p">Por página:</label>
-              <select
-                id="limit-p"
-                name="limitP"
-                defaultValue={limitP}
-                onChange="this.form.submit()"
-              >
-                {LIMITES_MAESTRO.map(n => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </form>
+            <LimitSelector
+              id="limit-p"
+              param="limitP"
+              pageParam="paginaProductos"
+              options={LIMITES_MAESTRO}
+              defaultValue={limitP}
+            />
           </div>
 
           <div className="table-wrap">

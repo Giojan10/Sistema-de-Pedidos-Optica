@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Navbar from '../components/Navbar.jsx';
 import Notice from '../components/Notice.jsx';
 import SortHeader from '../components/SortHeader.jsx';
+import LimitSelector from '../components/LimitSelector.jsx';
 import {
   getTabularReport,
   listUsuariosParaFiltro,
@@ -35,7 +36,6 @@ export default async function TabularReportPage({ searchParams }) {
     direccion: value(params.direccion) || 'asc',
   };
 
-  // Paginación
   const limit = LIMITES_TABULAR.includes(Number(params.limit))
     ? Number(params.limit)
     : 50;
@@ -59,12 +59,10 @@ export default async function TabularReportPage({ searchParams }) {
     id_usuario: filters.id_usuario,
   };
 
-  // Para exportar: sin paginar
   const exportQuery = new URLSearchParams(
     Object.entries(baseQuery).filter(([, v]) => v && v !== 'Todos')
   );
 
-  // Reconstruye URL conservando filtros, orden y limit
   const queryParams = (extra = {}) => {
     const base = {
       ...Object.fromEntries(
@@ -72,7 +70,7 @@ export default async function TabularReportPage({ searchParams }) {
       ),
       ...(filters.orden && { orden: filters.orden }),
       ...(filters.direccion && { direccion: filters.direccion }),
-      ...(limit !== 50 && { limit }),   // solo incluye si es distinto al default
+      ...(limit !== 50 && { limit }),
       ...extra,
     };
     const s = new URLSearchParams(base).toString();
@@ -90,31 +88,14 @@ export default async function TabularReportPage({ searchParams }) {
         <div className="grid-principal informe-layout">
           <section>
             <div className="tabla-toolbar">
-              <p className="subtitulo">
-                {total} línea(s) encontrada(s)
-              </p>
-              <form method="get" className="limit-selector">
-                {/* Conservar filtros y orden al cambiar el tamaño */}
-                {Object.entries(baseQuery).map(([k, v]) =>
-                  v && v !== 'Todos'
-                    ? <input key={k} type="hidden" name={k} value={v} />
-                    : null
-                )}
-                {filters.orden && <input type="hidden" name="orden" value={filters.orden} />}
-                {filters.direccion && <input type="hidden" name="direccion" value={filters.direccion} />}
-                <label htmlFor="limit">Filas por página:</label>
-                <select
-                  id="limit"
-                  name="limit"
-                  defaultValue={limit}
-                  onChange="this.form.submit()"
-                >
-                  {LIMITES_TABULAR.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-                <noscript>
-                  <button className="btn btn-plano">Aplicar</button>
-                </noscript>
-              </form>
+              <p className="subtitulo">{total} línea(s) encontrada(s)</p>
+              <LimitSelector
+                id="limit-tab"
+                param="limit"
+                pageParam="pagina"
+                options={LIMITES_TABULAR}
+                defaultValue={limit}
+              />
             </div>
 
             <div className="table-wrap">
@@ -153,25 +134,17 @@ export default async function TabularReportPage({ searchParams }) {
             {totalPaginas > 1 && (
               <nav className="paginacion">
                 {page > 1 && (
-                  <Link className="btn btn-plano" href={`/informe-tabular${queryParams({ pagina: 1 })}`}>
-                    « Primera
-                  </Link>
+                  <Link className="btn btn-plano" href={`/informe-tabular${queryParams({ pagina: 1 })}`}>« Primera</Link>
                 )}
                 {page > 1 && (
-                  <Link className="btn btn-plano" href={`/informe-tabular${queryParams({ pagina: page - 1 })}`}>
-                    ← Anterior
-                  </Link>
+                  <Link className="btn btn-plano" href={`/informe-tabular${queryParams({ pagina: page - 1 })}`}>← Anterior</Link>
                 )}
                 <span>Página {page} de {totalPaginas}</span>
                 {page < totalPaginas && (
-                  <Link className="btn btn-plano" href={`/informe-tabular${queryParams({ pagina: page + 1 })}`}>
-                    Siguiente →
-                  </Link>
+                  <Link className="btn btn-plano" href={`/informe-tabular${queryParams({ pagina: page + 1 })}`}>Siguiente →</Link>
                 )}
                 {page < totalPaginas && (
-                  <Link className="btn btn-plano" href={`/informe-tabular${queryParams({ pagina: totalPaginas })}`}>
-                    Última »
-                  </Link>
+                  <Link className="btn btn-plano" href={`/informe-tabular${queryParams({ pagina: totalPaginas })}`}>Última »</Link>
                 )}
               </nav>
             )}

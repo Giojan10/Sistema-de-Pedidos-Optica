@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { addToCart } from '../actions.js';
 import Navbar from '../components/Navbar.jsx';
 import Notice from '../components/Notice.jsx';
+import LimitSelector from '../components/LimitSelector.jsx';
 import { listProducts, LIMITES_CATALOGO } from '../../src/data.js';
 import { requireUser } from '../../src/session.js';
 
@@ -20,7 +21,6 @@ export default async function CatalogPage({ searchParams }) {
     orden: value(params.orden) || 'precio_desc',
   };
 
-  // Paginación
   const limit = LIMITES_CATALOGO.includes(Number(params.limit))
     ? Number(params.limit)
     : 12;
@@ -90,20 +90,13 @@ export default async function CatalogPage({ searchParams }) {
 
             <div className="tabla-toolbar">
               <p className="subtitulo">{total} producto(s) encontrado(s)</p>
-              <form method="get" className="limit-selector">
-                {Object.entries(baseQuery).map(([k, v]) =>
-                  <input key={k} type="hidden" name={k} value={v} />
-                )}
-                <label htmlFor="limit-cat">Por página:</label>
-                <select
-                  id="limit-cat"
-                  name="limit"
-                  defaultValue={limit}
-                  onChange="this.form.submit()"
-                >
-                  {LIMITES_CATALOGO.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-              </form>
+              <LimitSelector
+                id="limit-cat"
+                param="limit"
+                pageParam="pagina"
+                options={LIMITES_CATALOGO}
+                defaultValue={limit}
+              />
             </div>
 
             {!products.length && (
