@@ -6,7 +6,10 @@ import {
 
 const ESTADOS = ['Solicitándose', 'En edición', 'Realizado', 'Cancelado'];
 
-// Transiciones permitidas
+/**
+ * Máquina de estados: define qué transiciones son válidas.
+ * - Realizado y Cancelado son estados terminales.
+ */
 const TRANSICIONES = {
   'Solicitándose': ['En edición', 'Realizado', 'Cancelado'],
   'En edición':    ['Realizado', 'Cancelado'],
@@ -34,6 +37,7 @@ export async function GET(request, { params }) {
   );
   if (!compra[0]) return notFound('Compra no encontrada');
 
+  // Incluir las líneas en la respuesta
   const { rows: detalle } = await query(
     `SELECT cd.id_producto, p.nombre, cd.cantidad, cd.precio_unitario
      FROM compras_detalle cd
@@ -66,6 +70,7 @@ export async function PUT(request, { params }) {
   try {
     await client.query('BEGIN');
 
+    // Bloquear la fila para evitar cambios concurrentes
     const { rows: cur } = await client.query(
       'SELECT * FROM compras WHERE id_compra = $1 FOR UPDATE',
       [id]
@@ -81,6 +86,7 @@ export async function PUT(request, { params }) {
       return ok(actual, { mensaje: 'Sin cambios: el estado ya era ese.' });
     }
 
+    // Validar transición
     if (!TRANSICIONES[actual.estado]?.includes(nuevoEstado)) {
       await client.query('ROLLBACK');
       return badRequest(
@@ -88,13 +94,14 @@ export async function PUT(request, { params }) {
       );
     }
 
-    // Ajustar inventario según la transición
     const { rows: detalle } = await client.query(
       'SELECT id_producto, cantidad FROM compras_detalle WHERE id_compra = $1',
       [id]
     );
 
-    // De 'apartada' a 'vendida' (confirmación)
+    // Efectos en inventario según el caso:
+    //  - → Realizado: la reserva se consume (apartada -= cantidad).
+    //  - → Cancelado: devuelve todo (disponible += cantidad, apartada -= cantidad).
     if (
       (actual.estado === 'Solicitándose' || actual.estado === 'En edición') &&
       nuevoEstado === 'Realizado'
@@ -108,7 +115,6 @@ export async function PUT(request, { params }) {
       }
     }
 
-    // De 'apartada' a 'disponible' (cancelación)
     if (nuevoEstado === 'Cancelado') {
       for (const it of detalle) {
         await client.query(
@@ -158,6 +164,7 @@ export async function DELETE(request, { params }) {
       return notFound('Compra no encontrada');
     }
 
+    // Regla: Realizado no se borra, se cancela primero con PUT.
     if (cur[0].estado === 'Realizado') {
       await client.query('ROLLBACK');
       return badRequest(
@@ -165,7 +172,7 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    // Devolver inventario si estaba reservado
+    // Si estaba reservando inventario, devolverlo antes de borrar.
     if (cur[0].estado === 'Solicitándose' || cur[0].estado === 'En edición') {
       const { rows: detalle } = await client.query(
         'SELECT id_producto, cantidad FROM compras_detalle WHERE id_compra = $1',
@@ -182,6 +189,7 @@ export async function DELETE(request, { params }) {
       }
     }
 
+    // El borrado de compras_detalle ocurre por CASCADE (si está configurado).
     await client.query('DELETE FROM compras WHERE id_compra = $1', [id]);
     await client.query('COMMIT');
     return noContent();

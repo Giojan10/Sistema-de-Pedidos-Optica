@@ -19,7 +19,7 @@ if (!TOKEN) {
 
 const API = `${BASE_URL}/api/datos`;
 
-/* ---------------- Colores ---------------- */
+/* ---------------- Colores ANSI para la consola ---------------- */
 const c = {
   green: s => `\x1b[32m${s}\x1b[0m`,
   red:   s => `\x1b[31m${s}\x1b[0m`,
@@ -29,7 +29,7 @@ const c = {
   bold:  s => `\x1b[1m${s}\x1b[0m`,
 };
 
-/* ---------------- Contadores ---------------- */
+/* ---------------- Contadores globales ---------------- */
 let paso = 0;
 let exitos = 0;
 let fallos = 0;
@@ -38,16 +38,19 @@ const step    = (msg) => console.log(c.yellow(`\n▶ Paso ${++paso} — ${msg}`)
 const ok      = (msg) => { exitos++; console.log(c.green(`  ✔ ${msg}`)); };
 const fail    = (msg) => { fallos++; console.log(c.red(`  ✘ ${msg}`)); };
 const info    = (msg) => console.log(c.cyan(`    ${msg}`));
-const warn    = (msg) => console.log(c.gray(`    ${msg}`));
 
-/* ---------------- Recursos creados (para cleanup) ---------------- */
+/* ---------------- Recursos creados (para limpiar al final) ---------------- */
 const cleanup = {
   usuarios: [],
   productos: [],
   compras: [],
 };
 
-/* ---------------- Petición genérica ---------------- */
+/**
+ * Petición HTTP genérica a la API.
+ * - Lanza error si el status no es el esperado.
+ * - Intenta parsear JSON; si no puede, deja el texto.
+ */
 async function req(method, path, body, expected = 200, { withAuth = true } = {}) {
   const headers = {};
   if (withAuth) headers['Authorization'] = `Bearer ${TOKEN}`;
@@ -72,7 +75,10 @@ async function req(method, path, body, expected = 200, { withAuth = true } = {})
   return data;
 }
 
-/* ---------------- Wrapper para agrupar una prueba ---------------- */
+/**
+ * Ejecuta una prueba y captura el error para que el runner no se detenga.
+ * Cada test es independiente: si uno falla, los demás siguen.
+ */
 async function test(nombre, fn) {
   step(nombre);
   try {
@@ -82,13 +88,10 @@ async function test(nombre, fn) {
   }
 }
 
-/* ============================================================
-   PRUEBAS
-   ============================================================ */
-
 async function main() {
   console.log(c.bold(c.cyan(`\n🧪  Probando API en: ${API}\n`)));
 
+  // Sufijo aleatorio para no chocar con datos previos
   const sufijo = Math.floor(Math.random() * 1e6);
   const usuarioNombre = `test_api_${sufijo}`;
   const emailUsuario = `test_api_${sufijo}@example.com`;
@@ -191,7 +194,7 @@ async function main() {
     });
   }
 
-  /* ---------- 9. ERROR esperado: transición Cancelado → Realizado ---------- */
+  /* ---------- 9. ERROR esperado: transición inválida ---------- */
   if (compraId) {
     await test(`PUT /compras/${compraId} (Cancelado → Realizado debe fallar)`, async () => {
       try {
@@ -295,9 +298,11 @@ async function main() {
   reportar();
 }
 
-/* ============================================================
-   CLEANUP — borra todo lo que quedó si algo falló
-   ============================================================ */
+/**
+ * Borra los recursos que hayan quedado si algún test falló antes
+ * de eliminarlos él mismo. Silencioso (ignora errores) porque
+ * el objetivo es limpiar, no validar.
+ */
 async function cleanupAll() {
   for (const id of cleanup.compras) {
     try { await req('DELETE', `/compras/${id}`, undefined, 204); } catch {}
@@ -310,9 +315,7 @@ async function cleanupAll() {
   }
 }
 
-/* ============================================================
-   REPORTE FINAL
-   ============================================================ */
+/** Imprime el resumen final y sale con código 1 si hubo fallos. */
 function reportar() {
   console.log('\n' + c.bold('─'.repeat(50)));
   console.log(c.bold(`  Total pasos ejecutados: ${paso}`));

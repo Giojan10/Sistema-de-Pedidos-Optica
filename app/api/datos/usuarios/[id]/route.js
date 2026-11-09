@@ -7,6 +7,7 @@ import {
 
 const ROLES = ['Cliente', 'Operario', 'Administrador'];
 
+/** Normaliza el `id` del segmento dinámico a entero positivo o null. */
 async function loadId(params) {
   const { id } = await params;
   const n = toInt(id);
@@ -31,7 +32,7 @@ export async function GET(request, { params }) {
   return ok(rows[0]);
 }
 
-/* ---------------- PUT (actualizar) ---------------- */
+/* ---------------- PUT (actualizar parcial) ---------------- */
 export async function PUT(request, { params }) {
   const authError = await checkApiKey(request);
   if (authError) return authError;
@@ -43,15 +44,15 @@ export async function PUT(request, { params }) {
   try { body = await request.json(); }
   catch { return badRequest('JSON inválido'); }
 
-  // Cargar el actual para validar existencia y conservar campos no enviados
+  // Cargar el actual: para validar existencia y conservar campos no enviados
   const { rows: actual } = await query(
     'SELECT * FROM usuarios WHERE id_usuario = $1',
     [id]
   );
   if (!actual[0]) return notFound('Usuario no encontrado');
-
   const u = actual[0];
 
+  // Merge: si el campo no viene en el body, se conserva el actual
   const nombre = body.nombre !== undefined ? String(body.nombre).trim() : u.nombre;
   const email = body.email !== undefined ? (body.email ? String(body.email).trim() : null) : u.email;
   const telefono = body.telefono !== undefined ? (body.telefono ? String(body.telefono).trim() : null) : u.telefono;
@@ -62,7 +63,7 @@ export async function PUT(request, { params }) {
   if (!ROLES.includes(rol))
     return badRequest(`Campo "rol" debe ser uno de: ${ROLES.join(', ')}`);
 
-  // Si envían clave, se re-hashea
+  // Si mandan nueva clave, se re-hashea. Si no, se conserva el hash actual.
   let hash = u.clave_hash;
   if (body.clave !== undefined) {
     if (String(body.clave).length < 6)
@@ -94,7 +95,7 @@ export async function DELETE(request, { params }) {
   const id = await loadId(params);
   if (!id) return badRequest('ID inválido');
 
-  // Rechazar si tiene compras
+  // Regla: no se puede borrar un usuario con compras.
   const { rows: compras } = await query(
     'SELECT COUNT(*)::int AS n FROM compras WHERE id_usuario = $1',
     [id]

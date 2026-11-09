@@ -5,6 +5,11 @@ import { query } from './db.js';
 
 const SECRET = process.env.SESSION_SECRET || 'dev-secret-cambiar';
 
+/**
+ * Lee la cookie `sesion`, verifica el JWT y devuelve el usuario de la BD.
+ * - Devuelve `null` si no hay cookie, el JWT expiró o el usuario está inactivo.
+ * - No redirige: solo consulta. Cada guard decide qué hacer.
+ */
 export async function currentUser() {
   const store = await cookies();
   const token = store.get('sesion')?.value;
@@ -22,18 +27,21 @@ export async function currentUser() {
   }
 }
 
+/** Redirige a /login si no hay sesión válida. Devuelve el usuario si la hay. */
 export async function requireUser() {
   const u = await currentUser();
   if (!u) redirect('/login');
   return u;
 }
 
+/** Solo Administradores. Otros roles → redirige al catálogo con error. */
 export async function requireAdmin() {
   const u = await requireUser();
   if (u.rol !== 'Administrador') redirect('/catalogo?error=Acceso%20restringido');
   return u;
 }
 
+/** Operarios y Administradores (bloquea a Clientes). Para informes. */
 export async function requireStaff() {
   const u = await requireUser();
   if (u.rol === 'Cliente') {
@@ -42,6 +50,7 @@ export async function requireStaff() {
   return u;
 }
 
+/** Solo Clientes. Otros roles → redirige al catálogo con error. */
 export async function requireCliente() {
   const u = await requireUser();
   if (u.rol !== 'Cliente') {

@@ -1,11 +1,34 @@
 import { query } from './db.js';
 
+// Estados válidos de un pedido (deben coincidir con el CHECK de la tabla compras)
 const ESTADOS_PEDIDO = ['Solicitándose', 'En edición', 'Realizado', 'Cancelado'];
 
+/**
+ * Valida que el string tenga formato YYYY-MM-DD.
+ * Se usa para evitar inyección con strings arbitrarios en filtros de fecha.
+ */
 function dateFilter(v) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
 }
 
+/* ============================================================
+   MIS PEDIDOS (vista del rol Cliente)
+   ============================================================ */
+
+/**
+ * Lista los pedidos de UN usuario con filtros y paginación.
+ *
+ * Devuelve:
+ *   { pedidos, total, resumen, limit, offset }
+ *
+ * - `pedidos`: filas con total y unidades agregadas por pedido.
+ * - `total`: cantidad total de pedidos que coinciden con los filtros
+ *            (para calcular páginas).
+ * - `resumen`: totales agregados (pedidos, unidades, monto).
+ *
+ * Siempre filtra por `co.id_usuario = $1` para que un cliente nunca
+ * pueda ver los pedidos de otro aunque manipule la URL.
+ */
 export async function getMyOrders(userId, filters = {}, { limit = 20, offset = 0 } = {}) {
   const params = [userId];
   const where = ['co.id_usuario = $1'];
@@ -23,6 +46,9 @@ export async function getMyOrders(userId, filters = {}, { limit = 20, offset = 0
     where.push(`co.fecha <= $${params.length}::date`);
   }
   if (String(filters.buscar || '').trim()) {
+    // Búsqueda por nombre de producto dentro de los detalles del pedido.
+    // Se usa EXISTS para no duplicar pedidos que tengan varios productos
+    // coincidentes.
     params.push(`%${String(filters.buscar).trim()}%`);
     where.push(`EXISTS (
       SELECT 1 FROM compras_detalle cd2
@@ -33,6 +59,7 @@ export async function getMyOrders(userId, filters = {}, { limit = 20, offset = 0
 
   const whereSql = where.join(' AND ');
 
+  // Se ejecutan en paralelo: lista paginada + conteo total + agregados.
   const [{ rows: pedidos }, { rows: conteo }, { rows: resumen }] = await Promise.all([
     query(
       `SELECT co.id_compra, co.fecha, co.hora, co.estado, co.actualizado_en,
@@ -59,22 +86,20 @@ export async function getMyOrders(userId, filters = {}, { limit = 20, offset = 0
     ),
   ]);
 
-  return {
-    pedidos,
-    total: conteo[0].n,
-    resumen: resumen[0],
-    limit,
-    offset,
-  };
+  return { pedidos, total: conteo[0].n, resumen: resumen[0], limit, offset };
 }
 
 /**
  * Devuelve las líneas de detalle de varios pedidos a la vez.
- * Recibe un array de id_compra. Filtra por id_usuario para seguridad.
+ * Se usa un Map para agrupar por id_compra y evitar N+1 queries.
+ *
+ * IMPORTANTE: filtra por `co.id_usuario = $1` para que un cliente no
+ * pueda ver el detalle de pedidos ajenos aunque conozca los ids.
  */
 export async function getOrderDetails(userId, orderIds) {
   if (!orderIds.length) return new Map();
 
+  // Los placeholders empiezan en $2 porque $1 es el userId.
   const params = [userId, ...orderIds];
   const placeholders = orderIds.map((_, i) => `$${i + 2}`).join(',');
 
@@ -99,8 +124,14 @@ export async function getOrderDetails(userId, orderIds) {
   return map;
 }
 
-/* ---------------- Usuarios ---------------- */
+/* ============================================================
+   USUARIOS
+   ============================================================ */
 
+/**
+ * Lista usuarios. Por defecto solo los activos.
+ * Pasar `{ incluirInactivos: true }` para ver todos (vista del maestro).
+ */
 export async function listUsuarios({ incluirInactivos = false } = {}) {
   const { rows } = await query(
     `SELECT id_usuario, usuario, rol, nombre, email, activo, creado_en
@@ -111,6 +142,7 @@ export async function listUsuarios({ incluirInactivos = false } = {}) {
   return rows;
 }
 
+/** Devuelve un usuario por id o null. */
 export async function getUser(id) {
   const { rows } = await query(
     `SELECT id_usuario, usuario, rol, nombre, email, activo
@@ -120,8 +152,11 @@ export async function getUser(id) {
   return rows[0] || null;
 }
 
-/* ---------------- Productos ---------------- */
+/* ============================================================
+   PRODUCTOS
+   ============================================================ */
 
+/** Lista todos los productos (activos e inactivos) para el maestro. */
 export async function listProductsAdmin() {
   const { rows } = await query(
     `SELECT * FROM productos ORDER BY activo DESC, nombre`
@@ -129,6 +164,10 @@ export async function listProductsAdmin() {
   return rows;
 }
 
+/**
+ * Lista productos para el catálogo público.
+ * Por defecto solo activos (`activo = TRUE`).
+ */
 export async function listProducts(filters = {}, { incluirInactivos = false } = {}) {
   const params = [];
   const where = [];
@@ -161,8 +200,18 @@ export async function listProducts(filters = {}, { incluirInactivos = false } = 
   return rows;
 }
 
-/* ---------------- Pedido abierto (reemplaza carrito_temp) ---------------- */
+/* ============================================================
+   PEDIDO ABIERTO (carrito implícito)
+   ------------------------------------------------------------
+   Un usuario tiene a lo sumo UN pedido en estado
+   'Solicitándose' o 'En edición' a la vez. Ese es su "carrito".
+   ============================================================ */
 
+/**
+ * Whitelist de columnas ordenables para el informe tabular.
+ * Las claves son las que usa el frontend en `?orden=...`.
+ * Los valores son expresiones SQL seguras (nunca input directo).
+ */
 const ORDEN_TABULAR = {
   id_compra: 'co.id_compra',
   fecha: 'co.fecha',
@@ -174,6 +223,11 @@ const ORDEN_TABULAR = {
   estado: 'co.estado',
 };
 
+/**
+ * Whitelist de columnas ordenables para el informe consolidado.
+ * Ojo: `inventario` apunta a `i.productos_en_inventario` (del CTE
+ * `inventario`), NO a `v.productos_en_inventario` (que no existe).
+ */
 const ORDEN_CONSOLIDADO = {
   color: 'v.color',
   unidades: 'v.total_productos_vendidos',
@@ -183,7 +237,11 @@ const ORDEN_CONSOLIDADO = {
 };
 
 /**
- * Devuelve una cláusula ORDER BY segura (nunca interpola input directo).
+ * Construye una cláusula ORDER BY segura.
+ *
+ * - Solo acepta columnas de la whitelist (evita SQL injection).
+ * - `direccion` se normaliza a ASC/DESC.
+ * - Si la columna no existe en la whitelist, usa el fallback.
  */
 function buildOrderBy(whitelist, orden, direccion, fallback) {
   const col = whitelist[orden];
@@ -192,6 +250,12 @@ function buildOrderBy(whitelist, orden, direccion, fallback) {
   return `ORDER BY ${col} ${dir}`;
 }
 
+/**
+ * Devuelve el pedido abierto del usuario (estado Solicitándose o En edición)
+ * con sus items y el total calculado.
+ *
+ * Si no hay pedido abierto, devuelve { order: null, items: [], total: 0 }.
+ */
 export async function getOpenOrder(userId) {
   const { rows: order } = await query(
     `SELECT id_compra, estado, fecha, hora
@@ -218,8 +282,15 @@ export async function getOpenOrder(userId) {
   return { order: order[0], items, total };
 }
 
-/* ---------------- Informes ---------------- */
+/* ============================================================
+   INFORMES
+   ============================================================ */
 
+/**
+ * Informe tabular: cada línea de compra (producto × pedido).
+ * Soporta filtros por color, estado, usuario, precio, fecha
+ * y ordenamiento por columna.
+ */
 export async function getTabularReport(filters = {}) {
   const params = [];
   const where = [];
@@ -232,7 +303,7 @@ export async function getTabularReport(filters = {}) {
   if (['Solicitándose', 'En edición', 'Realizado', 'Cancelado'].includes(filters.estado))
     add(filters.estado, 'co.estado = ?');
   if (filters.id_usuario && Number.isInteger(Number(filters.id_usuario)))
-    add(Number(filters.id_usuario), 'co.id_usuario = ?');       // ← NUEVO
+    add(Number(filters.id_usuario), 'co.id_usuario = ?');
   if (filters.precio_desde !== '' && Number.isFinite(Number(filters.precio_desde)))
     add(Number(filters.precio_desde), 'cd.cantidad * cd.precio_unitario >= ?');
   if (filters.precio_hasta !== '' && Number.isFinite(Number(filters.precio_hasta)))
@@ -250,7 +321,7 @@ export async function getTabularReport(filters = {}) {
     ORDEN_TABULAR,
     filters.orden,
     filters.direccion,
-    'co.fecha DESC, co.id_compra DESC'   // fallback
+    'co.fecha DESC, co.id_compra DESC'
   );
 
   const { rows } = await query(
@@ -270,6 +341,7 @@ export async function getTabularReport(filters = {}) {
   return rows;
 }
 
+/** Lista mínima de usuarios activos para poblar el <select> de filtros. */
 export async function listUsuariosParaFiltro() {
   const { rows } = await query(
     `SELECT id_usuario, nombre, usuario
@@ -280,6 +352,19 @@ export async function listUsuariosParaFiltro() {
   return rows;
 }
 
+/**
+ * Informe consolidado por color.
+ *
+ * Solo cuenta pedidos en estado 'Realizado' (los cancelados no
+ * representan ventas reales).
+ *
+ * Agrupa por color y suma:
+ *   - total_productos_vendidos
+ *   - promedio_precio
+ *   - ingresos_totales
+ *
+ * Añade el inventario disponible actual (no depende del filtro).
+ */
 export async function getConsolidatedReport(filters = {}) {
   const params = [];
   const where = [`co.estado = 'Realizado'`];
@@ -297,13 +382,14 @@ export async function getConsolidatedReport(filters = {}) {
     where.push(`co.id_usuario = $${params.length}`);
   }
 
-  // Clave: el ORDER BY va DENTRO del CTE final, no en el SELECT externo
+  // El ORDER BY va dentro del SELECT final. Se quita el prefijo "ORDER BY "
+  // porque se interpola como parte del texto.
   const ordenInterno = buildOrderBy(
     ORDEN_CONSOLIDADO,
     filters.orden,
     filters.direccion,
     'v.total_productos_vendidos DESC'
-  ).replace(/^ORDER BY /, ''); // quitar el prefijo, se usa dentro del SELECT
+  ).replace(/^ORDER BY /, '');
 
   const [{ rows: report }, usuarios] = await Promise.all([
     query(

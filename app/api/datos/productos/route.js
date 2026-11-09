@@ -35,6 +35,7 @@ export async function POST(request) {
   try { body = await request.json(); }
   catch { return badRequest('JSON inválido'); }
 
+  // Normalización
   const nombre = String(body.nombre || '').trim();
   const descripcion = body.descripcion ? String(body.descripcion).trim() : null;
   const color = String(body.color || '').trim();
@@ -44,6 +45,7 @@ export async function POST(request) {
   const precio = toNumber(body.precio_unitario);
   const activo = body.activo !== undefined ? Boolean(body.activo) : true;
 
+  // Validaciones
   if (!nombre) return badRequest('Campo "nombre" obligatorio.');
   if (!color) return badRequest('Campo "color" obligatorio.');
   if (precio === null || precio < 0)

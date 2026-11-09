@@ -6,14 +6,20 @@ import { checkApiKey, paginationFrom } from '../../../src/apiAuth.js';
  * Devuelve un snapshot completo de las tablas principales.
  * Requiere: Authorization: Bearer <token>
  * Query params opcionales: ?limit=100&offset=0
+ *
+ * Útil para que un sistema externo haga una sincronización inicial
+ * sin tener que llamar 4 endpoints distintos.
  */
 export async function GET(request) {
+  // 1. Autenticación
   const authError = await checkApiKey(request);
   if (authError) return authError;
 
+  // 2. Paginación (misma para las 4 tablas)
   const { limit, offset } = paginationFrom(request);
 
   try {
+    // 3. Ejecutar las 4 consultas en paralelo
     const [
       { rows: usuarios },
       { rows: productos },
@@ -52,6 +58,7 @@ export async function GET(request) {
       ),
     ]);
 
+    // 4. Devolver todo junto con metadatos
     return Response.json({
       ok: true,
       generado_en: new Date().toISOString(),

@@ -4,6 +4,10 @@ import {
   ok, badRequest, notFound, pgErrorToResponse, toInt,
 } from '../../../../../../src/apiHelpers.js';
 
+/**
+ * Líneas de UNA compra específica.
+ * Se valida primero que la compra exista (evita devolver [] sin contexto).
+ */
 export async function GET(request, { params }) {
   const authError = await checkApiKey(request);
   if (authError) return authError;

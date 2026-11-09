@@ -43,12 +43,13 @@ export async function POST(request) {
   if (!idUsuario) return badRequest('Campo "id_usuario" obligatorio.');
   if (!items.length) return badRequest('Debe incluir al menos un ítem en "items".');
 
-  // Validar ítems
+  // Validar cada ítem
   for (const it of items) {
     if (!toInt(it.id_producto) || !toInt(it.cantidad) || it.cantidad < 1)
       return badRequest('Cada ítem requiere "id_producto" y "cantidad" (≥1).');
   }
 
+  // Transacción: compra + detalle + inventario deben ser atómicos.
   const client = await connect();
   try {
     await client.query('BEGIN');
@@ -63,7 +64,7 @@ export async function POST(request) {
       return badRequest('Usuario no existe.');
     }
 
-    // 2. Crear compra
+    // 2. Crear compra (cabecera)
     const { rows: compraRows } = await client.query(
       `INSERT INTO compras (id_usuario, fecha, hora, estado)
        VALUES ($1, CURRENT_DATE, LOCALTIME, $2)
@@ -72,7 +73,7 @@ export async function POST(request) {
     );
     const compra = compraRows[0];
 
-    // 3. Insertar detalle y actualizar inventario
+    // 3. Para cada ítem: verificar stock, insertar detalle, mover inventario
     for (const it of items) {
       const { rows: prod } = await client.query(
         'SELECT precio_unitario, cantidad_disponible FROM productos WHERE id_producto = $1 FOR UPDATE',
@@ -89,14 +90,16 @@ export async function POST(request) {
 
       const precio = Number(prod[0].precio_unitario);
 
+      // Insertar línea de detalle (precio congelado al momento de la compra)
       await client.query(
         `INSERT INTO compras_detalle (id_compra, id_producto, cantidad, precio_unitario)
          VALUES ($1,$2,$3,$4)`,
         [compra.id_compra, it.id_producto, it.cantidad, precio]
       );
 
-      // Si el estado es Realizado, se descuenta del inventario disponible
-      // Si es Solicitándose, se mueve a apartada
+      // Actualizar inventario según el estado inicial:
+      //  - Realizado: descuenta disponible (venta consumada).
+      //  - Solicitándose/En edición: mueve de disponible a apartada (reserva).
       if (estado === 'Realizado') {
         await client.query(
           'UPDATE productos SET cantidad_disponible = cantidad_disponible - $1 WHERE id_producto = $2',

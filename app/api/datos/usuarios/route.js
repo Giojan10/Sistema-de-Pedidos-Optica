@@ -38,6 +38,7 @@ export async function POST(request) {
   try { body = await request.json(); }
   catch { return badRequest('JSON inválido'); }
 
+  // Normalización de campos
   const usuario = String(body.usuario || '').trim().toLowerCase();
   const clave = String(body.clave || '');
   const rol = String(body.rol || 'Cliente');
@@ -46,6 +47,7 @@ export async function POST(request) {
   const telefono = body.telefono ? String(body.telefono).trim() : null;
   const fechaNacimiento = body.fecha_nacimiento || null;
 
+  // Validaciones
   if (!usuario || usuario.length < 3)
     return badRequest('Campo "usuario" obligatorio (mín. 3 caracteres).');
   if (!clave || clave.length < 6)
@@ -55,6 +57,7 @@ export async function POST(request) {
   if (!ROLES.includes(rol))
     return badRequest(`Campo "rol" debe ser uno de: ${ROLES.join(', ')}`);
 
+  // Hash bcrypt de la clave (nunca se guarda en texto plano)
   const hash = await bcrypt.hash(clave, 10);
 
   try {

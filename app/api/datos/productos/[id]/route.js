@@ -23,7 +23,7 @@ export async function GET(request, { params }) {
   return ok(rows[0]);
 }
 
-/* ---------------- PUT (actualizar) ---------------- */
+/* ---------------- PUT (actualizar parcial) ---------------- */
 export async function PUT(request, { params }) {
   const authError = await checkApiKey(request);
   if (authError) return authError;
@@ -42,6 +42,7 @@ export async function PUT(request, { params }) {
   if (!actual[0]) return notFound('Producto no encontrado');
   const p = actual[0];
 
+  // Merge: campos no enviados se conservan
   const nombre = body.nombre !== undefined ? String(body.nombre).trim() : p.nombre;
   const descripcion = body.descripcion !== undefined
     ? (body.descripcion ? String(body.descripcion).trim() : null)
@@ -91,6 +92,7 @@ export async function DELETE(request, { params }) {
   const id = await loadId(params);
   if (!id) return badRequest('ID inválido');
 
+  // Regla: no se puede borrar un producto con líneas de compra.
   const { rows: usos } = await query(
     'SELECT COUNT(*)::int AS n FROM compras_detalle WHERE id_producto = $1',
     [id]
@@ -102,6 +104,7 @@ export async function DELETE(request, { params }) {
     );
   }
 
+  // Transacción por consistencia (aunque sea un solo DELETE)
   const client = await connect();
   try {
     await client.query('BEGIN');
