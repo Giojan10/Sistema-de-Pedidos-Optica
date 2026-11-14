@@ -70,7 +70,7 @@ export default async function MaestroPage({ searchParams }) {
         {/* ---------- Alta de usuarios y productos ---------- */}
         <div className="grid-principal report-grid">
           <section className="panel">
-            <h3>Crear usuario</h3>
+            <h3>Registrar usuario</h3>
             <form action={createUser}>
               <label>Usuario</label><input name="usuario" required />
               <label>Contraseña (mín. 6)</label>
@@ -82,12 +82,12 @@ export default async function MaestroPage({ searchParams }) {
               </select>
               <label>Nombre completo</label><input name="nombre" required />
               <label>Email</label><input name="email" type="email" />
-              <button className="btn btn-block">Crear usuario</button>
+              <button className="btn btn-block">Registrar usuario</button>
             </form>
           </section>
 
           <section className="panel">
-            <h3>Crear producto</h3>
+            <h3>Registrar producto</h3>
             <form action={createProduct} encType="multipart/form-data">
               <label>Nombre</label><input name="nombre" required />
               <label>Descripción</label><input name="descripcion" />
@@ -105,7 +105,7 @@ export default async function MaestroPage({ searchParams }) {
               <input name="cantidad_apartada" type="number" min="0" defaultValue="0" />
               <label>Precio unitario</label>
               <input name="precio_unitario" type="number" step="0.01" min="0" required />
-              <button className="btn btn-block">Crear producto</button>
+              <button className="btn btn-block">Registrar producto</button>
             </form>
           </section>
         </div>
